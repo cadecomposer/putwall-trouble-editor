@@ -994,28 +994,33 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     dz.addEventListener('keydown', function (e) {
       if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); $('fileInput').click(); }
     });
+
+    function highlightDropzone(on) { dz.classList.toggle('dragover', on); }
+
     ['dragenter', 'dragover'].forEach(function (ev) {
       dz.addEventListener(ev, function (e) {
-        e.preventDefault(); e.stopPropagation();
-        dz.classList.add('dragover');
+        e.preventDefault();
+        highlightDropzone(true);
       });
     });
-    ['dragleave', 'drop'].forEach(function (ev) {
-      dz.addEventListener(ev, function (e) {
-        e.preventDefault(); e.stopPropagation();
-        if (ev === 'dragleave' && dz.contains(e.relatedTarget)) return;
-        dz.classList.remove('dragover');
-      });
+    dz.addEventListener('dragleave', function (e) {
+      // Only clear the highlight when the pointer truly leaves the dropzone.
+      if (!dz.contains(e.relatedTarget)) highlightDropzone(false);
     });
 
-    // Dropping anywhere in the window also works.
-    window.addEventListener('dragover', function (e) { e.preventDefault(); });
+    // Accept a drop anywhere in the window. Handling it here (rather than on
+    // the dropzone) means dropping directly on the box is not swallowed.
+    window.addEventListener('dragover', function (e) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+    });
     window.addEventListener('drop', function (e) {
       e.preventDefault();
-      dz.classList.remove('dragover');
+      highlightDropzone(false);
       var dt = e.dataTransfer;
       if (dt && dt.files && dt.files.length) onFiles(dt.files);
     });
+    window.addEventListener('dragend', function () { highlightDropzone(false); });
 
     $('downloadBtn').addEventListener('click', downloadEdited);
     $('resetBtn').addEventListener('click', reset);
