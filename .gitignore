@@ -1,0 +1,11 @@
+# Never commit real order / trouble data to a public repo
+*.xlsx
+*.xls
+*.xlsm
+*.csv
+OC-CLEARING*
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+*.swp

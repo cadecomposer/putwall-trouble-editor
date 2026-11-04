@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Putwall Trouble Spreadsheet Editor</title>
+  <link rel="stylesheet" href="src/styles.css" />
+</head>
+<body>
+  <header class="app-header">
+    <h1>Putwall Trouble Spreadsheet Editor</h1>
+    <p>Turn an OC Clearing export into a filtered, sorted, barcode-labeled sheet in a few clicks.</p>
+  </header>
+
+  <main>
+    <!-- STEP 1 -->
+    <section class="card">
+      <h2><span class="step-num">1</span> Choose your trouble locations</h2>
+      <p class="hint">Select the TRBL-PW locations you are working today. Only rows assigned to these locations are kept.</p>
+      <div class="loc-toolbar">
+        <button type="button" id="selectAllBtn">Select all 20</button>
+        <button type="button" id="clearAllBtn">Clear</button>
+        <span class="hint" style="margin:0" id="locCountLabel">0 selected</span>
+      </div>
+      <div class="loc-grid" id="locGrid"></div>
+    </section>
+
+    <!-- STEP 2 -->
+    <section class="card">
+      <h2><span class="step-num">2</span> Add the OC Clearing spreadsheet</h2>
+      <p class="hint">Drag the <code>.xlsx</code> file anywhere onto this box, or click to browse. Everything happens on your device &mdash; nothing is uploaded.</p>
+      <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Upload spreadsheet">
+        <span class="icon" aria-hidden="true">&#128196;</span>
+        <div class="big">Drop the spreadsheet here</div>
+        <div>or <button type="button" class="link" id="browseBtn">click to choose a file</button></div>
+        <input type="file" id="fileInput" accept=".xlsx,.xlsm,.xls" class="hidden" />
+      </div>
+      <div class="status" id="status" role="status" aria-live="polite"></div>
+    </section>
+
+    <!-- RESULTS -->
+    <section class="card hidden" id="resultsCard">
+      <h2><span class="step-num">3</span> Review &amp; export</h2>
+      <p class="hint" id="resultsSummary"></p>
+      <div class="stats" id="statsBox"></div>
+      <div class="action-row">
+        <button type="button" class="primary" id="downloadBtn">&#11015; Download .xlsx</button>
+        <button type="button" id="resetBtn">Start over</button>
+      </div>
+      <div class="legend">
+        <span><span class="swatch dup"></span>Row marked red = duplicate (a later copy of an earlier identical row)</span>
+      </div>
+      <div class="preview-wrap" style="margin-top:14px">
+        <table class="preview" id="previewTable"></table>
+      </div>
+      <div class="preview-note" id="previewNote"></div>
+    </section>
+  </main>
+
+  <footer class="app-footer">
+    Runs entirely in your browser. No order, item, or tote data leaves this computer.
+  </footer>
+
+  <script src="vendor/xlsx.full.min.js"></script>
+  <script src="vendor/exceljs.min.js"></script>
+  <script src="vendor/JsBarcode.all.min.js"></script>
+  <script src="src/processor.js"></script>
+  <script src="src/app.js"></script>
+</body>
+</html>
