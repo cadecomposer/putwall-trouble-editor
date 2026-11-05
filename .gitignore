@@ -5,6 +5,10 @@
 *.csv
 OC-CLEARING*
 
+# The synthetic test spreadsheet stays local too. Regenerate it any time with:
+#   node test/make-sample-sections.js
+test/*.xlsx
+
 # OS / editor cruft
 .DS_Store
 Thumbs.db
