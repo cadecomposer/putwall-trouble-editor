@@ -10,8 +10,9 @@ spreadsheet in a few clicks:
 4. **Generate scannable Code 128 barcodes** for every distinct tote, each shown
    next to its label number, on a dedicated **Barcodes** sheet.
 5. **Mark duplicate rows red** (only the later copies, never the first).
-6. **Preview the barcodes** right in the page.
-7. **Download** the edited `.xlsx`, or **print** a document with the troubles
+6. **Highlight the `Need` cell yellow** when it is more than 1.
+7. **Preview the barcodes** right in the page.
+8. **Download** the edited `.xlsx`, or **print** a document with the troubles
    table (landscape, 10pt) followed by a page of barcode labels.
 
 Everything runs in the browser. No file, order, item or tote data is ever
@@ -71,7 +72,7 @@ or *Save as PDF*) with two parts:
 - **Page 1 — the troubles table**, landscape, 10pt, limited to the columns
   `Tote Gid` through the first `Reserve Locn` (i.e. `Tote Gid`, `Label`, `Item`,
   `Need`, `Active Locn`, `Active Locn 2`, `Active OH`, `Reserve Locn`).
-  Duplicate rows keep their red shading.
+  Duplicate rows keep their red shading, and `Need` cells above 1 are yellow.
 - **Following pages — the barcode labels**, portrait, one block per distinct
   tote with the label number above a Code 128 barcode and the tote number below.
 
@@ -93,6 +94,7 @@ document is always light so it prints cleanly either way.
 
 - a new `Label` column immediately to the right of `Tote Gid`;
 - duplicate rows filled light red (fill `FFC7CE`, font `9C0006`);
+- `Need` cells greater than 1 filled yellow (fill `FFEB3B`);
 - a frozen header row.
 
 **Sheet "Barcodes"** - one row per distinct tote, containing the label number,

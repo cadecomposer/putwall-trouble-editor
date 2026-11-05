@@ -318,11 +318,18 @@ table.preview td {
 table.preview tr.dup td { background: var(--dup-bg); color: var(--dup-text); }
 table.preview td.label-col, table.preview th.label-col { text-align: center; font-weight: 700; background: var(--label-col-bg); }
 table.preview tr.dup td.label-col { background: var(--dup-bg); }
+table.preview td.needs-multi,
+table.preview tr.dup td.needs-multi {
+  background: #ffeb3b;
+  color: #1c2530;
+  font-weight: 700;
+}
 .preview-note { color: var(--muted); font-size: 12px; margin-top: 8px; }
 
 .legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12.5px; color: var(--muted); margin-top: 10px; }
 .swatch { display: inline-block; width: 14px; height: 14px; border-radius: 3px; vertical-align: -2px; margin-right: 5px; border: 1px solid var(--border); }
 .swatch.dup { background: var(--dup-bg); }
+.swatch.need { background: #ffeb3b; }
 
 .subhead {
   margin: 24px 0 4px;
@@ -433,6 +440,7 @@ footer.app-footer code {
       </div>
       <div class="legend">
         <span><span class="swatch dup"></span>Row marked red = duplicate (a later copy of an earlier identical row)</span>
+        <span><span class="swatch need"></span>Yellow = Need is more than 1</span>
       </div>
       <div class="preview-wrap" style="margin-top:14px">
         <table class="preview" id="previewTable"></table>
@@ -744,11 +752,24 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 
     var duplicateCount = duplicates.filter(Boolean).length;
 
+    // 6. Flag rows whose "Need" is more than 1 (these get highlighted yellow).
+    var needIdx = outCols.need;
+    var multiNeed = outRows.map(function (row) {
+      if (needIdx === undefined) return false;
+      var raw = row[needIdx];
+      var v = String(raw == null ? '' : raw).replace(/,/g, '').trim();
+      if (v === '') return false;
+      var num = Number(v);
+      return isFinite(num) && num > 1;
+    });
+    var multiNeedCount = multiNeed.filter(Boolean).length;
+
     return {
       header: outHeader,
       rows: outRows,
       columns: outCols,
       duplicates: duplicates,
+      multiNeed: multiNeed,
       barcodes: barcodes,
       stats: {
         headerIndex: headerIndex,
@@ -756,6 +777,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         keptRows: outRows.length,
         filteredOut: dataRows.length - outRows.length,
         duplicateRows: duplicateCount,
+        multiNeedRows: multiNeedCount,
         distinctTotes: barcodes.length
       }
     };
@@ -944,6 +966,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     box.appendChild(statCard(String(s.keptRows), 'Rows kept'));
     box.appendChild(statCard(String(s.filteredOut), 'Rows filtered out'));
     box.appendChild(statCard(String(s.duplicateRows), 'Duplicate rows'));
+    box.appendChild(statCard(String(s.multiNeedRows), 'Need > 1'));
     box.appendChild(statCard(String(s.distinctTotes), 'Barcodes / totes'));
 
     renderPreview(result);
@@ -955,6 +978,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     var table = $('previewTable');
     table.innerHTML = '';
     var labelCol = result.columns.label;
+    var needCol = result.columns.need;
 
     var thead = document.createElement('thead');
     var htr = document.createElement('tr');
@@ -977,7 +1001,10 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         var td = document.createElement('td');
         var val = row[c];
         td.textContent = val == null ? '' : val;
-        if (c === labelCol) td.className = 'label-col';
+        var classes = [];
+        if (c === labelCol) classes.push('label-col');
+        if (c === needCol && result.multiNeed[r]) classes.push('needs-multi');
+        if (classes.length) td.className = classes.join(' ');
         tr.appendChild(td);
       }
       tbody.appendChild(tr);
@@ -1069,6 +1096,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     'table.sheet th { background: #e6e6e6; }',
     'table.sheet td.lbl { text-align: center; font-weight: bold; }',
     'table.sheet tr.dup td { background: #ffc7ce; }',
+    'table.sheet tr td.need-multi { background: #ffeb3b; color: #000; font-weight: bold; }',
     '.labels-section { page: labels; page-break-before: always; }',
     '.label { display: inline-block; width: 60mm; padding: 3mm; margin: 0; text-align: center; vertical-align: top; border: 1px dashed #b0b0b0; page-break-inside: avoid; }',
     '.label .num { font-size: 20pt; font-weight: bold; line-height: 1; }',
@@ -1095,7 +1123,9 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 
     var tbody = '<tbody>' + result.rows.map(function (row, ri) {
       var tds = cols.map(function (c) {
-        var cls = (c.name === 'Label') ? ' class="lbl"' : '';
+        var cls = '';
+        if (c.name === 'Label') cls = ' class="lbl"';
+        else if (c.name === 'Need' && result.multiNeed[ri]) cls = ' class="need-multi"';
         return '<td' + cls + '>' + escapeHtml(row[c.i]) + '</td>';
       }).join('');
       return '<tr' + (result.duplicates[ri] ? ' class="dup"' : '') + '>' + tds + '</tr>';
@@ -1236,6 +1266,12 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       var labelCell = row.getCell(result.columns.label + 1);
       labelCell.alignment = { horizontal: 'center' };
       if (!result.duplicates[i]) labelCell.font = { bold: true };
+
+      if (result.multiNeed[i]) {
+        var needCell = row.getCell(result.columns.need + 1);
+        needCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFEB3B' } };
+        needCell.font = { bold: true, color: { argb: 'FF1C2530' } };
+      }
     });
 
     result.header.forEach(function (h, i) {

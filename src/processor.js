@@ -214,11 +214,24 @@
 
     var duplicateCount = duplicates.filter(Boolean).length;
 
+    // 6. Flag rows whose "Need" is more than 1 (these get highlighted yellow).
+    var needIdx = outCols.need;
+    var multiNeed = outRows.map(function (row) {
+      if (needIdx === undefined) return false;
+      var raw = row[needIdx];
+      var v = String(raw == null ? '' : raw).replace(/,/g, '').trim();
+      if (v === '') return false;
+      var num = Number(v);
+      return isFinite(num) && num > 1;
+    });
+    var multiNeedCount = multiNeed.filter(Boolean).length;
+
     return {
       header: outHeader,
       rows: outRows,
       columns: outCols,
       duplicates: duplicates,
+      multiNeed: multiNeed,
       barcodes: barcodes,
       stats: {
         headerIndex: headerIndex,
@@ -226,6 +239,7 @@
         keptRows: outRows.length,
         filteredOut: dataRows.length - outRows.length,
         duplicateRows: duplicateCount,
+        multiNeedRows: multiNeedCount,
         distinctTotes: barcodes.length
       }
     };

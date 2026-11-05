@@ -169,6 +169,7 @@
     box.appendChild(statCard(String(s.keptRows), 'Rows kept'));
     box.appendChild(statCard(String(s.filteredOut), 'Rows filtered out'));
     box.appendChild(statCard(String(s.duplicateRows), 'Duplicate rows'));
+    box.appendChild(statCard(String(s.multiNeedRows), 'Need > 1'));
     box.appendChild(statCard(String(s.distinctTotes), 'Barcodes / totes'));
 
     renderPreview(result);
@@ -180,6 +181,7 @@
     var table = $('previewTable');
     table.innerHTML = '';
     var labelCol = result.columns.label;
+    var needCol = result.columns.need;
 
     var thead = document.createElement('thead');
     var htr = document.createElement('tr');
@@ -202,7 +204,10 @@
         var td = document.createElement('td');
         var val = row[c];
         td.textContent = val == null ? '' : val;
-        if (c === labelCol) td.className = 'label-col';
+        var classes = [];
+        if (c === labelCol) classes.push('label-col');
+        if (c === needCol && result.multiNeed[r]) classes.push('needs-multi');
+        if (classes.length) td.className = classes.join(' ');
         tr.appendChild(td);
       }
       tbody.appendChild(tr);
@@ -294,6 +299,7 @@
     'table.sheet th { background: #e6e6e6; }',
     'table.sheet td.lbl { text-align: center; font-weight: bold; }',
     'table.sheet tr.dup td { background: #ffc7ce; }',
+    'table.sheet tr td.need-multi { background: #ffeb3b; color: #000; font-weight: bold; }',
     '.labels-section { page: labels; page-break-before: always; }',
     '.label { display: inline-block; width: 60mm; padding: 3mm; margin: 0; text-align: center; vertical-align: top; border: 1px dashed #b0b0b0; page-break-inside: avoid; }',
     '.label .num { font-size: 20pt; font-weight: bold; line-height: 1; }',
@@ -320,7 +326,9 @@
 
     var tbody = '<tbody>' + result.rows.map(function (row, ri) {
       var tds = cols.map(function (c) {
-        var cls = (c.name === 'Label') ? ' class="lbl"' : '';
+        var cls = '';
+        if (c.name === 'Label') cls = ' class="lbl"';
+        else if (c.name === 'Need' && result.multiNeed[ri]) cls = ' class="need-multi"';
         return '<td' + cls + '>' + escapeHtml(row[c.i]) + '</td>';
       }).join('');
       return '<tr' + (result.duplicates[ri] ? ' class="dup"' : '') + '>' + tds + '</tr>';
@@ -461,6 +469,12 @@
       var labelCell = row.getCell(result.columns.label + 1);
       labelCell.alignment = { horizontal: 'center' };
       if (!result.duplicates[i]) labelCell.font = { bold: true };
+
+      if (result.multiNeed[i]) {
+        var needCell = row.getCell(result.columns.need + 1);
+        needCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFEB3B' } };
+        needCell.font = { bold: true, color: { argb: 'FF1C2530' } };
+      }
     });
 
     result.header.forEach(function (h, i) {

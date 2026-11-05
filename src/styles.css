@@ -298,11 +298,18 @@ table.preview td {
 table.preview tr.dup td { background: var(--dup-bg); color: var(--dup-text); }
 table.preview td.label-col, table.preview th.label-col { text-align: center; font-weight: 700; background: var(--label-col-bg); }
 table.preview tr.dup td.label-col { background: var(--dup-bg); }
+table.preview td.needs-multi,
+table.preview tr.dup td.needs-multi {
+  background: #ffeb3b;
+  color: #1c2530;
+  font-weight: 700;
+}
 .preview-note { color: var(--muted); font-size: 12px; margin-top: 8px; }
 
 .legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12.5px; color: var(--muted); margin-top: 10px; }
 .swatch { display: inline-block; width: 14px; height: 14px; border-radius: 3px; vertical-align: -2px; margin-right: 5px; border: 1px solid var(--border); }
 .swatch.dup { background: var(--dup-bg); }
+.swatch.need { background: #ffeb3b; }
 
 .subhead {
   margin: 24px 0 4px;
