@@ -164,8 +164,6 @@
     return d;
   }
 
-  var TABLE_LIMIT = 500;
-
   function visibleColumnIndices(result) {
     if (state.showAllColumns) {
       return result.header.map(function (_, i) { return i; });
@@ -197,8 +195,7 @@
     tableEl.appendChild(thead);
 
     var tbody = document.createElement('tbody');
-    var limit = Math.min(rowIdxs.length, TABLE_LIMIT);
-    for (var n = 0; n < limit; n++) {
+    for (var n = 0; n < rowIdxs.length; n++) {
       var r = rowIdxs[n];
       var row = result.rows[r];
       var tr = document.createElement('tr');
@@ -215,7 +212,7 @@
       });
       tbody.appendChild(tr);
 
-      if (breaksAfter && breaksAfter[n] && n < limit - 1) {
+      if (breaksAfter && breaksAfter[n] && n < rowIdxs.length - 1) {
         var brk = document.createElement('tr');
         brk.className = 'page-break-row';
         var btd = document.createElement('td');
@@ -226,7 +223,6 @@
       }
     }
     tableEl.appendChild(tbody);
-    return rowIdxs.length > limit;
   }
 
   function buildSection(def, result, cols) {
@@ -263,13 +259,7 @@
     pw.appendChild(table);
     wrap.appendChild(pw);
 
-    var truncated = renderTable(table, cols, def.rows, result);
-    var note = document.createElement('div');
-    note.className = 'preview-note';
-    note.textContent = truncated
-      ? 'Showing the first ' + TABLE_LIMIT + ' of ' + def.rows.length + '.'
-      : '';
-    wrap.appendChild(note);
+    renderTable(table, cols, def.rows, result);
     return wrap;
   }
 
@@ -337,12 +327,9 @@
     var normalRows = result.groups.normal;
     var ranges = currentRanges(result);
     var breaks = ranges.length > 1 ? breaksAfterMap(ranges) : null;
-    var truncated = renderTable($('previewTable'), cols, normalRows, result, breaks);
+    renderTable($('previewTable'), cols, normalRows, result, breaks);
     $('troublesCount').textContent = '(' + normalRows.length + ')';
-    $('previewNote').textContent = truncated
-      ? 'Showing the first ' + TABLE_LIMIT + ' of ' + normalRows.length +
-        ' rows. The download and print include all of them.'
-      : '';
+    $('previewNote').textContent = '';
   }
 
   var mainTablePending = false;
@@ -539,14 +526,12 @@
   function renderBarcodePreview(result) {
     var grid = $('barcodeGrid');
     grid.innerHTML = '';
-    var cap = 300;
     if (!result.barcodes.length) {
       $('bcCount').textContent = '(0)';
       $('bcNote').textContent = 'No tote numbers were found in the selected rows, so there are no barcodes.';
       return;
     }
-    var shown = Math.min(result.barcodes.length, cap);
-    for (var i = 0; i < shown; i++) {
+    for (var i = 0; i < result.barcodes.length; i++) {
       var b = result.barcodes[i];
       var card = document.createElement('div');
       card.className = 'barcode-card';
@@ -568,10 +553,7 @@
       grid.appendChild(card);
     }
     $('bcCount').textContent = '(' + result.barcodes.length + ')';
-    $('bcNote').textContent = result.barcodes.length > cap
-      ? 'Showing the first ' + cap + ' of ' + result.barcodes.length +
-        '. The printed document and the downloaded file contain all of them.'
-      : '';
+    $('bcNote').textContent = '';
   }
 
   // ------------------------------------------------------------- Printing

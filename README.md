@@ -167,6 +167,7 @@ These are the choices the tool makes. They are all easy to change - see
 | Duplicates | The entire original row must match (every column except the derived `Label`). The first occurrence keeps its section; later copies go to **Duplicates**. |
 | Barcodes | Code 128, encoding the **tote number**, generated only for the printable **Troubles**. |
 | Column toggle | Web tables default to `oLPN` … `Reserve Locn 2`; the button reveals every column. The `.xlsx` always contains every column. |
+| Preview length | Every row is rendered on the page, so the whole list is visible at once (no separate scroll box inside the table). |
 | Print columns | Always `Tote Gid` … first `Reserve Locn`, landscape, 10pt, header repeated on every page. |
 | Print pages | Splits the printable Troubles into pages for multiple pickers; the split is even by default and each divider can be dragged. Barcodes stay on a single page at the end. |
 
