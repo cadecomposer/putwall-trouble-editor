@@ -73,8 +73,9 @@ or *Save as PDF*) with two parts:
   `Tote Gid` through the first `Reserve Locn` (i.e. `Tote Gid`, `Label`, `Item`,
   `Need`, `Active Locn`, `Active Locn 2`, `Active OH`, `Reserve Locn`).
   Duplicate rows keep their red shading, and `Need` cells above 1 are yellow.
-- **Following pages — the barcode labels**, portrait, one block per distinct
-  tote with the label number above a Code 128 barcode and the tote number below.
+- **Following pages — the barcode labels**, also landscape, one block per
+  distinct tote with the label number above a Code 128 barcode and the tote
+  number below.
 
 The barcode and colours are always the same as what you download, so the printed
 page and the spreadsheet agree.

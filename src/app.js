@@ -290,7 +290,6 @@
 
   var PRINT_CSS = [
     '@page { size: landscape; margin: 8mm; }',
-    '@page labels { size: portrait; margin: 8mm; }',
     '* { box-sizing: border-box; }',
     'body { margin: 0; color: #000; font-family: Arial, Helvetica, sans-serif; }',
     'h1 { font-size: 12pt; margin: 0 0 6px; }',
@@ -300,7 +299,7 @@
     'table.sheet td.lbl { text-align: center; font-weight: bold; }',
     'table.sheet tr.dup td { background: #ffc7ce; }',
     'table.sheet tr td.need-multi { background: #ffeb3b; color: #000; font-weight: bold; }',
-    '.labels-section { page: labels; page-break-before: always; }',
+    '.labels-section { page-break-before: always; }',
     '.label { display: inline-block; width: 60mm; padding: 3mm; margin: 0; text-align: center; vertical-align: top; border: 1px dashed #b0b0b0; page-break-inside: avoid; }',
     '.label .num { font-size: 20pt; font-weight: bold; line-height: 1; }',
     '.label svg { display: block; margin: 2mm auto 1mm; max-width: 100%; height: 16mm; }',
