@@ -45,6 +45,7 @@
       <div class="stats" id="statsBox"></div>
       <div class="action-row">
         <button type="button" class="primary" id="downloadBtn">&#11015; Download .xlsx</button>
+        <button type="button" id="printBtn">&#128424; Print sheet + barcodes</button>
         <button type="button" id="resetBtn">Start over</button>
       </div>
       <div class="legend">
@@ -54,6 +55,11 @@
         <table class="preview" id="previewTable"></table>
       </div>
       <div class="preview-note" id="previewNote"></div>
+
+      <h3 class="subhead">Barcodes <span class="muted" id="bcCount"></span></h3>
+      <p class="hint" style="margin:-4px 0 12px">Each barcode encodes its tote number; the number above it is the label.</p>
+      <div class="barcode-grid" id="barcodeGrid"></div>
+      <div class="preview-note" id="bcNote"></div>
     </section>
   </main>
 

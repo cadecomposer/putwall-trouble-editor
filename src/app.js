@@ -12,6 +12,7 @@
   var state = {
     grid: null,            // parsed 2D array from the uploaded file
     sourceFileName: '',
+    selectedLocations: [],
     result: null
   };
 
@@ -128,6 +129,7 @@
         return;
       }
       state.result = result;
+      state.selectedLocations = selected;
       setStatus('Done \u2014 ' + result.stats.keptRows + ' row(s) kept from ' +
         result.stats.inputRows + ' putwall-related rows.', 'ok');
       renderResults(result);
@@ -170,6 +172,7 @@
     box.appendChild(statCard(String(s.distinctTotes), 'Barcodes / totes'));
 
     renderPreview(result);
+    renderBarcodePreview(result);
     $('resultsCard').classList.remove('hidden');
   }
 
@@ -209,6 +212,195 @@
     $('previewNote').textContent = result.rows.length > limit
       ? 'Previewing the first ' + limit + ' of ' + result.rows.length + ' rows. The downloaded file has them all.'
       : '';
+  }
+
+  // ------------------------------------------------------- Barcode preview
+
+  var SVG_NS = 'http://www.w3.org/2000/svg';
+
+  function makeBarcodeSvg(value) {
+    var svg = document.createElementNS(SVG_NS, 'svg');
+    JsBarcode(svg, value, {
+      format: 'CODE128',
+      width: 2,
+      height: 60,
+      margin: 0,
+      displayValue: false,
+      background: '#ffffff',
+      lineColor: '#000000'
+    });
+    return svg;
+  }
+
+  function makeBarcodeSvgMarkup(value) {
+    return new XMLSerializer().serializeToString(makeBarcodeSvg(value));
+  }
+
+  function renderBarcodePreview(result) {
+    var grid = $('barcodeGrid');
+    grid.innerHTML = '';
+    var cap = 300;
+    if (!result.barcodes.length) {
+      $('bcCount').textContent = '(0)';
+      $('bcNote').textContent = 'No tote numbers were found in the selected rows, so there are no barcodes.';
+      return;
+    }
+    var shown = Math.min(result.barcodes.length, cap);
+    for (var i = 0; i < shown; i++) {
+      var b = result.barcodes[i];
+      var card = document.createElement('div');
+      card.className = 'barcode-card';
+
+      var num = document.createElement('div');
+      num.className = 'bc-num';
+      num.textContent = b.label;
+
+      var tote = document.createElement('div');
+      tote.className = 'bc-tote';
+      tote.textContent = b.tote;
+
+      var svg = makeBarcodeSvg(b.tote);
+      svg.setAttribute('class', 'bc-svg');
+
+      card.appendChild(num);
+      card.appendChild(svg);
+      card.appendChild(tote);
+      grid.appendChild(card);
+    }
+    $('bcCount').textContent = '(' + result.barcodes.length + ')';
+    $('bcNote').textContent = result.barcodes.length > cap
+      ? 'Showing the first ' + cap + ' of ' + result.barcodes.length +
+        '. The printed document and the downloaded file contain all of them.'
+      : '';
+  }
+
+  // ------------------------------------------------------------- Printing
+
+  // Columns to print, per the Putwall team's convention:
+  // from Tote Gid through the first Reserve Locn (not Reserve Locn 2).
+  var PRINT_COLUMNS = [
+    'Tote Gid', 'Label', 'Item', 'Need',
+    'Active Locn', 'Active Locn 2', 'Active OH', 'Reserve Locn'
+  ];
+
+  var PRINT_CSS = [
+    '@page { size: landscape; margin: 8mm; }',
+    '@page labels { size: portrait; margin: 8mm; }',
+    '* { box-sizing: border-box; }',
+    'body { margin: 0; color: #000; font-family: Arial, Helvetica, sans-serif; }',
+    'h1 { font-size: 12pt; margin: 0 0 6px; }',
+    'table.sheet { border-collapse: collapse; width: 100%; font-size: 10pt; }',
+    'table.sheet th, table.sheet td { border: 1px solid #7f7f7f; padding: 2px 4px; text-align: left; white-space: nowrap; }',
+    'table.sheet th { background: #e6e6e6; }',
+    'table.sheet td.lbl { text-align: center; font-weight: bold; }',
+    'table.sheet tr.dup td { background: #ffc7ce; }',
+    '.labels-section { page: labels; page-break-before: always; }',
+    '.label { display: inline-block; width: 60mm; padding: 3mm; margin: 0; text-align: center; vertical-align: top; border: 1px dashed #b0b0b0; page-break-inside: avoid; }',
+    '.label .num { font-size: 20pt; font-weight: bold; line-height: 1; }',
+    '.label svg { display: block; margin: 2mm auto 1mm; max-width: 100%; height: 16mm; }',
+    '.label .tote { font-family: Consolas, "Liberation Mono", monospace; font-size: 9pt; }'
+  ].join('\n');
+
+  function escapeHtml(s) {
+    return String(s == null ? '' : s).replace(/[&<>"]/g, function (ch) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch];
+    });
+  }
+
+  function buildPrintHtml(result) {
+    var headerIdx = {};
+    result.header.forEach(function (h, i) { headerIdx[h] = i; });
+    var cols = PRINT_COLUMNS
+      .map(function (name) { return { name: name, i: headerIdx[name] }; })
+      .filter(function (c) { return c.i !== undefined; });
+
+    var thead = '<thead><tr>' + cols.map(function (c) {
+      return '<th>' + escapeHtml(c.name) + '</th>';
+    }).join('') + '</tr></thead>';
+
+    var tbody = '<tbody>' + result.rows.map(function (row, ri) {
+      var tds = cols.map(function (c) {
+        var cls = (c.name === 'Label') ? ' class="lbl"' : '';
+        return '<td' + cls + '>' + escapeHtml(row[c.i]) + '</td>';
+      }).join('');
+      return '<tr' + (result.duplicates[ri] ? ' class="dup"' : '') + '>' + tds + '</tr>';
+    }).join('') + '</tbody>';
+
+    var labels = result.barcodes.map(function (b) {
+      var svg = makeBarcodeSvgMarkup(b.tote);
+      return '<div class="label"><div class="num">' + escapeHtml(b.label) +
+        '</div>' + svg + '<div class="tote">' + escapeHtml(b.tote) + '</div></div>';
+    }).join('');
+
+    var head = 'Putwall Troubles \u2014 ' + escapeHtml((state.selectedLocations || []).join(', '));
+
+    return '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + head +
+      '</title><style>' + PRINT_CSS + '</style></head><body>' +
+      '<div class="sheet-section"><h1>' + head + '</h1>' +
+      '<table class="sheet">' + thead + tbody + '</table></div>' +
+      '<div class="labels-section">' + labels + '</div>' +
+      '</body></html>';
+  }
+
+  function openPrintFallback(html) {
+    var w = window.open('', '_blank');
+    if (!w) {
+      setStatus('Could not open the print view. Allow pop-ups for this page and try again.', 'error');
+      return;
+    }
+    w.document.open();
+    w.document.write(html);
+    w.document.close();
+    w.focus();
+    setTimeout(function () { try { w.print(); } catch (e) { /* user can print manually */ } }, 400);
+  }
+
+  function printDocument() {
+    if (!state.result) return;
+    var html;
+    try {
+      html = buildPrintHtml(state.result);
+    } catch (err) {
+      console.error(err);
+      setStatus('Could not build the print view: ' + (err && err.message ? err.message : err), 'error');
+      return;
+    }
+
+    // Print via a hidden iframe so no pop-up blocker is involved.
+    var frame = document.createElement('iframe');
+    frame.setAttribute('aria-hidden', 'true');
+    frame.style.position = 'fixed';
+    frame.style.right = '0';
+    frame.style.bottom = '0';
+    frame.style.width = '0';
+    frame.style.height = '0';
+    frame.style.border = '0';
+    document.body.appendChild(frame);
+
+    var idoc = frame.contentWindow.document;
+    idoc.open();
+    idoc.write(html);
+    idoc.close();
+
+    var done = false;
+    function cleanup() {
+      setTimeout(function () { if (frame.parentNode) frame.parentNode.removeChild(frame); }, 1500);
+    }
+    function go() {
+      if (done) return;
+      done = true;
+      try {
+        frame.contentWindow.focus();
+        frame.contentWindow.print();
+        frame.contentWindow.onafterprint = cleanup;
+        cleanup();
+      } catch (err) {
+        console.error(err);
+        if (frame.parentNode) frame.parentNode.removeChild(frame);
+        openPrintFallback(html);
+      }
+    }
+    setTimeout(go, 300);
   }
 
   // --------------------------------------------------------- Workbook writing
@@ -411,8 +603,15 @@
     window.addEventListener('dragend', function () { highlightDropzone(false); });
 
     $('downloadBtn').addEventListener('click', downloadEdited);
+    $('printBtn').addEventListener('click', printDocument);
     $('resetBtn').addEventListener('click', reset);
   }
+
+  // Exposed so the print/preview can be inspected and tested.
+  window.PWApp = {
+    buildPrintHtml: function () { return state.result ? buildPrintHtml(state.result) : ''; },
+    state: state
+  };
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
