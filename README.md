@@ -20,7 +20,8 @@ spreadsheet in a few clicks:
 6. **Highlight the `Need` cell yellow** when it is more than 1.
 7. **Preview the barcodes** right in the page.
 8. **Download** the edited `.xlsx` (one sheet per section), or **print** the
-   troubles table plus a page of barcode labels.
+   troubles table — optionally split across pages for multiple pickers — plus a
+   page of barcode labels.
 
 Everything runs in the browser. No file, order, item or tote data is ever
 uploaded anywhere.
@@ -91,15 +92,29 @@ location you did not select.
 **Print sheet + barcodes** opens your browser's print dialog (choose a printer
 or *Save as PDF*) with two parts, both landscape:
 
-- **Page 1 — the troubles table**, 10pt, limited to the columns `Tote Gid`
-  through the first `Reserve Locn` (i.e. `Tote Gid`, `Label`, `Item`, `Need`,
-  `Active Locn`, `Active Locn 2`, `Active OH`, `Reserve Locn`). `Need` cells
-  above 1 are yellow.
-- **Following pages — the barcode labels**, one block per printable tote with
-  the label number above a Code 128 barcode and the tote number below.
+- **The troubles table**, 10pt, limited to the columns `Tote Gid` through the
+  first `Reserve Locn` (`Tote Gid`, `Label`, `Item`, `Need`, `Active Locn`,
+  `Active Locn 2`, `Active OH`, `Reserve Locn`). `Need` cells above 1 are
+  yellow, and the column header repeats on every printed page.
+- **The barcode labels**, one block per printable tote with the label number
+  above a Code 128 barcode and the tote number below, always as a single page
+  at the end.
 
 Only the printable **Troubles** print. The alt-form, split-cancel, hold and
 duplicate sections are never printed.
+
+#### Splitting the list across pages
+
+When a run is big enough that several people will go and get the items, use the
+**Print pages** control just above the Troubles table:
+
+- It starts at **1** page. A long list simply spills onto more printed pages at
+  the same font size (nothing is shrunk).
+- Use **+ / −** to split the list into 2, 3, … pages. The split starts out even
+  (halves, thirds, …).
+- Drag the divider sliders to move where each page begins. Each divider is the
+  last row on that page, and the preview shows a "Page N starts here" line.
+- **Even split** resets the dividers to an even division.
 
 ### Appearance
 
@@ -148,7 +163,8 @@ These are the choices the tool makes. They are all easy to change - see
 | Duplicates | The entire original row must match (every column except the derived `Label`). The first occurrence keeps its section; later copies go to **Duplicates**. |
 | Barcodes | Code 128, encoding the **tote number**, generated only for the printable **Troubles**. |
 | Column toggle | Web tables default to `oLPN` … `Reserve Locn 2`; the button reveals every column. The `.xlsx` always contains every column. |
-| Print columns | Always `Tote Gid` … first `Reserve Locn`, landscape, 10pt. |
+| Print columns | Always `Tote Gid` … first `Reserve Locn`, landscape, 10pt, header repeated on every page. |
+| Print pages | Splits the printable Troubles into pages for multiple pickers; the split is even by default and each divider can be dragged. Barcodes stay on a single page at the end. |
 
 If any of these should behave differently, it is a small change - see below.
 

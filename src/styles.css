@@ -317,6 +317,64 @@ table.preview tr.dup td.needs-multi {
   color: var(--accent-text);
 }
 .subhead-warn { color: var(--error); }
+
+/* Print pagination */
+.print-layout {
+  margin: 14px 0 6px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: var(--stat-bg);
+}
+.print-layout-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.print-layout-title { font-weight: 600; }
+.page-count {
+  min-width: 22px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  color: var(--accent-text);
+}
+.step-btn {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  line-height: 1;
+  font-size: 16px;
+  border-radius: 6px;
+}
+.divider-controls { margin-top: 10px; display: grid; gap: 8px; }
+.divider-row {
+  display: grid;
+  grid-template-columns: 68px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+.divider-row .divider-page { font-weight: 600; color: var(--accent-text); }
+.divider-row input[type="range"] { width: 100%; accent-color: var(--brand); }
+.divider-row .divider-range {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.divider-note { color: var(--muted); font-size: 12px; }
+
+table.preview tr.page-break-row td {
+  text-align: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent-text);
+  background: var(--stat-bg);
+  border-top: 2px dashed var(--accent-text);
+  border-bottom: 2px dashed var(--accent-text);
+  padding: 3px 8px;
+}
 .muted { color: var(--muted); font-weight: 400; }
 
 .barcode-grid {

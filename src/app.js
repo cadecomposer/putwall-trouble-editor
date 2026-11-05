@@ -14,8 +14,12 @@
     sourceFileName: '',
     selectedLocations: [],
     showAllColumns: false,
+    printPages: 1,         // how many pages the trouble list is split into
+    printBoundaries: [],   // cumulative row counts where each page ends
     result: null
   };
+
+  var MAX_PRINT_PAGES = 20;
 
   function $(id) { return document.getElementById(id); }
 
@@ -104,6 +108,8 @@
         });
         state.grid = grid;
         state.sourceFileName = file.name;
+        state.printPages = 1;
+        state.printBoundaries = [];
         reprocess();
       } catch (err) {
         console.error(err);
@@ -174,7 +180,7 @@
     return idx;
   }
 
-  function renderTable(tableEl, indices, rowIdxs, result) {
+  function renderTable(tableEl, indices, rowIdxs, result, breaksAfter) {
     var labelCol = result.columns.label;
     var needCol = result.columns.need;
     tableEl.innerHTML = '';
@@ -208,6 +214,16 @@
         tr.appendChild(td);
       });
       tbody.appendChild(tr);
+
+      if (breaksAfter && breaksAfter[n] && n < limit - 1) {
+        var brk = document.createElement('tr');
+        brk.className = 'page-break-row';
+        var btd = document.createElement('td');
+        btd.colSpan = indices.length;
+        btd.textContent = 'Page ' + breaksAfter[n] + ' starts here';
+        brk.appendChild(btd);
+        tbody.appendChild(brk);
+      }
     }
     tableEl.appendChild(tbody);
     return rowIdxs.length > limit;
@@ -257,16 +273,195 @@
     return wrap;
   }
 
-  function renderTables(result) {
-    var cols = visibleColumnIndices(result);
+  // ---- Print pagination helpers -------------------------------------------
 
+  function effectivePages(total, pages) {
+    if (total <= 0) return 1;
+    return Math.max(1, Math.min(pages, total, MAX_PRINT_PAGES));
+  }
+
+  function evenBoundaries(total, pages) {
+    if (pages <= 1 || total <= 1) return [];
+    var b = [];
+    for (var i = 1; i < pages; i++) {
+      b.push(Math.round(i * total / pages));
+    }
+    return b;
+  }
+
+  // Returns [[start, end), ...] for each page, clamped to valid boundaries.
+  function chunkRanges(total, pages, boundaries) {
+    pages = effectivePages(total, pages);
+    if (pages <= 1 || total <= 0) return [[0, total]];
+    var ranges = [];
+    var prev = 0;
+    for (var i = 0; i < pages - 1; i++) {
+      var remaining = pages - 1 - i;           // pages still to come after this one
+      var minEnd = prev + 1;
+      var maxEnd = total - remaining;          // leave >= 1 row for each later page
+      var raw = boundaries && boundaries[i] != null
+        ? boundaries[i]
+        : Math.round((i + 1) * total / pages);
+      var end = Math.max(minEnd, Math.min(maxEnd, raw));
+      ranges.push([prev, end]);
+      prev = end;
+    }
+    ranges.push([prev, total]);
+    return ranges;
+  }
+
+  function currentRanges(result) {
+    var total = result.groups.normal.length;
+    return chunkRanges(total, state.printPages, state.printBoundaries);
+  }
+
+  function breaksAfterMap(ranges) {
+    var map = {};
+    var acc = 0;
+    for (var i = 0; i < ranges.length - 1; i++) {
+      acc += (ranges[i][1] - ranges[i][0]);
+      map[acc - 1] = i + 2;                    // next page number
+    }
+    return map;
+  }
+
+  function dividerNote(text) {
+    var s = document.createElement('span');
+    s.className = 'divider-note';
+    s.textContent = text;
+    return s;
+  }
+
+  function renderMainTableOnly(result) {
+    var cols = visibleColumnIndices(result);
     var normalRows = result.groups.normal;
-    var truncated = renderTable($('previewTable'), cols, normalRows, result);
+    var ranges = currentRanges(result);
+    var breaks = ranges.length > 1 ? breaksAfterMap(ranges) : null;
+    var truncated = renderTable($('previewTable'), cols, normalRows, result, breaks);
     $('troublesCount').textContent = '(' + normalRows.length + ')';
     $('previewNote').textContent = truncated
       ? 'Showing the first ' + TABLE_LIMIT + ' of ' + normalRows.length +
         ' rows. The download and print include all of them.'
       : '';
+  }
+
+  var mainTablePending = false;
+  function scheduleMainTable() {
+    if (mainTablePending) return;
+    mainTablePending = true;
+    requestAnimationFrame(function () {
+      mainTablePending = false;
+      if (state.result) renderMainTableOnly(state.result);
+    });
+  }
+
+  function updateDividerControls(ranges, total, pages) {
+    var rows = $('dividerControls').querySelectorAll('.divider-row');
+    for (var i = 0; i < rows.length && i < ranges.length; i++) {
+      var range = ranges[i];
+      var slider = rows[i].querySelector('input[type="range"]');
+      if (slider) {
+        slider.min = String(range[0] + 1);
+        slider.max = String(total - (pages - 1 - i));
+        slider.value = String(range[1]);
+      }
+      var info = rows[i].querySelector('.divider-range');
+      if (info) info.textContent = 'rows ' + (range[0] + 1) + '\u2013' + range[1];
+    }
+  }
+
+  function onBoundaryInput(e) {
+    if (!state.result) return;
+    var idx = Number(e.target.dataset.boundary);
+    state.printBoundaries = state.printBoundaries.slice();
+    state.printBoundaries[idx] = Number(e.target.value);
+
+    var total = state.result.groups.normal.length;
+    var pages = effectivePages(total, state.printPages);
+    var ranges = chunkRanges(total, pages, state.printBoundaries);
+    state.printBoundaries = ranges.slice(0, -1).map(function (r) { return r[1]; });
+    updateDividerControls(ranges, total, pages);
+    scheduleMainTable();
+  }
+
+  function renderPrintLayout(result) {
+    var total = result.groups.normal.length;
+    var pages = effectivePages(total, state.printPages);
+    state.printPages = pages;
+    if (state.printBoundaries.length !== Math.max(0, pages - 1)) {
+      state.printBoundaries = evenBoundaries(total, pages);
+    }
+    var ranges = chunkRanges(total, pages, state.printBoundaries);
+    state.printBoundaries = ranges.slice(0, -1).map(function (r) { return r[1]; });
+
+    $('pageCountLabel').textContent = String(pages);
+    $('pageMinus').disabled = pages <= 1;
+    $('pagePlus').disabled = pages >= effectivePages(total, MAX_PRINT_PAGES);
+
+    var host = $('dividerControls');
+    host.innerHTML = '';
+    if (total === 0) {
+      host.appendChild(dividerNote('No printable troubles.'));
+      return;
+    }
+    if (pages === 1) {
+      host.appendChild(dividerNote(
+        'Printing as a single list. A long list spills onto more pages at the same font size.'));
+      return;
+    }
+
+    ranges.forEach(function (range, idx) {
+      var row = document.createElement('div');
+      row.className = 'divider-row';
+
+      var label = document.createElement('span');
+      label.className = 'divider-page';
+      label.textContent = 'Page ' + (idx + 1);
+      row.appendChild(label);
+
+      var mid = document.createElement('span');
+      if (idx < pages - 1) {
+        var slider = document.createElement('input');
+        slider.type = 'range';
+        slider.min = String(range[0] + 1);
+        slider.max = String(total - (pages - 1 - idx));
+        slider.value = String(range[1]);
+        slider.dataset.boundary = String(idx);
+        slider.setAttribute('aria-label', 'Last row on page ' + (idx + 1));
+        slider.addEventListener('input', onBoundaryInput);
+        mid.appendChild(slider);
+      }
+      row.appendChild(mid);
+
+      var info = document.createElement('span');
+      info.className = 'divider-range';
+      info.textContent = 'rows ' + (range[0] + 1) + '\u2013' + range[1];
+      row.appendChild(info);
+      host.appendChild(row);
+    });
+    host.appendChild(dividerNote('Each divider is where the next page begins.'));
+  }
+
+  function setPrintPages(pages) {
+    if (!state.result) return;
+    var total = state.result.groups.normal.length;
+    var p = effectivePages(total, pages);
+    state.printPages = p;
+    state.printBoundaries = evenBoundaries(total, p);
+    renderTables(state.result);
+  }
+
+  function evenSplit() {
+    if (!state.result) return;
+    var total = state.result.groups.normal.length;
+    state.printBoundaries = evenBoundaries(total, state.printPages);
+    renderTables(state.result);
+  }
+
+  function renderTables(result) {
+    var cols = visibleColumnIndices(result);
+
+    renderMainTableOnly(result);
 
     var host = $('otherSections');
     host.innerHTML = '';
@@ -293,6 +488,7 @@
     }, result, cols));
 
     $('columnsBtn').textContent = state.showAllColumns ? 'Show fewer columns' : 'Show all columns';
+    renderPrintLayout(result);
   }
 
   function renderResults(result) {
@@ -395,9 +591,13 @@
     'table.sheet { border-collapse: collapse; width: 100%; font-size: 10pt; }',
     'table.sheet th, table.sheet td { border: 1px solid #7f7f7f; padding: 2px 4px; text-align: left; white-space: nowrap; }',
     'table.sheet th { background: #e6e6e6; }',
+    'table.sheet thead { display: table-header-group; }',
+    'table.sheet tr { page-break-inside: avoid; }',
     'table.sheet td.lbl { text-align: center; font-weight: bold; }',
     'table.sheet tr.dup td { background: #ffc7ce; }',
     'table.sheet tr td.need-multi { background: #ffeb3b; color: #000; font-weight: bold; }',
+    '.sheet-section.page-break { page-break-before: always; }',
+    '.sheet-sub { font-size: 9pt; color: #444444; margin: 0 0 4px; }',
     '.labels-section { page-break-before: always; }',
     '.label { display: inline-block; width: 60mm; padding: 3mm; margin: 0; text-align: center; vertical-align: top; border: 1px dashed #b0b0b0; page-break-inside: avoid; }',
     '.label .num { font-size: 20pt; font-weight: bold; line-height: 1; }',
@@ -422,16 +622,33 @@
       return '<th>' + escapeHtml(c.name) + '</th>';
     }).join('') + '</tr></thead>';
 
-    var tbody = '<tbody>' + result.groups.normal.map(function (ri) {
-      var row = result.rows[ri];
-      var tds = cols.map(function (c) {
-        var cls = '';
-        if (c.name === 'Label') cls = ' class="lbl"';
-        else if (c.name === 'Need' && result.multiNeed[ri]) cls = ' class="need-multi"';
-        return '<td' + cls + '>' + escapeHtml(row[c.i]) + '</td>';
-      }).join('');
-      return '<tr' + (result.duplicates[ri] ? ' class="dup"' : '') + '>' + tds + '</tr>';
-    }).join('') + '</tbody>';
+    var head = 'Putwall Troubles \u2014 ' + escapeHtml((state.selectedLocations || []).join(', '));
+
+    var total = result.groups.normal.length;
+    var pages = effectivePages(total, state.printPages);
+    var ranges = chunkRanges(total, pages, state.printBoundaries);
+
+    var sections = ranges.map(function (range, idx) {
+      var rows = result.groups.normal.slice(range[0], range[1]);
+      var tbody = '<tbody>' + rows.map(function (ri) {
+        var row = result.rows[ri];
+        var tds = cols.map(function (c) {
+          var cls = '';
+          if (c.name === 'Label') cls = ' class="lbl"';
+          else if (c.name === 'Need' && result.multiNeed[ri]) cls = ' class="need-multi"';
+          return '<td' + cls + '>' + escapeHtml(row[c.i]) + '</td>';
+        }).join('');
+        return '<tr>' + tds + '</tr>';
+      }).join('') + '</tbody>';
+
+      var sub = pages > 1
+        ? '<div class="sheet-sub">Page ' + (idx + 1) + ' of ' + pages +
+          ' \u00b7 rows ' + (range[0] + 1) + '\u2013' + range[1] + '</div>'
+        : '';
+      return '<div class="sheet-section' + (idx ? ' page-break' : '') + '">' +
+        '<h1>' + head + '</h1>' + sub +
+        '<table class="sheet">' + thead + tbody + '</table></div>';
+    }).join('');
 
     var labels = result.barcodes.map(function (b) {
       var svg = makeBarcodeSvgMarkup(b.tote);
@@ -439,12 +656,9 @@
         '</div>' + svg + '<div class="tote">' + escapeHtml(b.tote) + '</div></div>';
     }).join('');
 
-    var head = 'Putwall Troubles \u2014 ' + escapeHtml((state.selectedLocations || []).join(', '));
-
     return '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + head +
       '</title><style>' + PRINT_CSS + '</style></head><body>' +
-      '<div class="sheet-section"><h1>' + head + '</h1>' +
-      '<table class="sheet">' + thead + tbody + '</table></div>' +
+      sections +
       '<div class="labels-section">' + labels + '</div>' +
       '</body></html>';
   }
@@ -672,6 +886,8 @@
     state.grid = null;
     state.result = null;
     state.sourceFileName = '';
+    state.printPages = 1;
+    state.printBoundaries = [];
     $('resultsCard').classList.add('hidden');
     $('fileInput').value = '';
     setStatus('');
@@ -783,6 +999,9 @@
       state.showAllColumns = !state.showAllColumns;
       if (state.result) renderTables(state.result);
     });
+    $('pageMinus').addEventListener('click', function () { setPrintPages(state.printPages - 1); });
+    $('pagePlus').addEventListener('click', function () { setPrintPages(state.printPages + 1); });
+    $('pageEvenBtn').addEventListener('click', evenSplit);
     $('resetBtn').addEventListener('click', reset);
   }
 
