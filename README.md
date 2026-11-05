@@ -78,6 +78,13 @@ or *Save as PDF*) with two parts:
 The barcode and colours are always the same as what you download, so the printed
 page and the spreadsheet agree.
 
+### Appearance
+
+The page follows your browser/OS colour-scheme setting automatically: a light
+theme by default, switching to a dark theme when your system is set to dark
+mode. There is no toggle to manage. The printed document is always light so it
+prints cleanly either way.
+
 ---
 
 ## What the output contains
