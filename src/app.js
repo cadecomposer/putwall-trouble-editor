@@ -13,6 +13,7 @@
     grid: null,            // parsed 2D array from the uploaded file
     sourceFileName: '',
     selectedLocations: [],
+    showAllColumns: false,
     result: null
   };
 
@@ -157,66 +158,164 @@
     return d;
   }
 
-  function renderResults(result) {
-    var s = result.stats;
-    $('resultsSummary').textContent =
-      'Kept ' + s.keptRows + ' of ' + s.inputRows + ' rows. ' +
-      s.duplicateRows + ' duplicate row(s) marked red. ' +
-      s.distinctTotes + ' distinct tote(s) got barcodes.';
+  var TABLE_LIMIT = 500;
 
-    var box = $('statsBox');
-    box.innerHTML = '';
-    box.appendChild(statCard(String(s.keptRows), 'Rows kept'));
-    box.appendChild(statCard(String(s.filteredOut), 'Rows filtered out'));
-    box.appendChild(statCard(String(s.duplicateRows), 'Duplicate rows'));
-    box.appendChild(statCard(String(s.multiNeedRows), 'Need > 1'));
-    box.appendChild(statCard(String(s.distinctTotes), 'Barcodes / totes'));
-
-    renderPreview(result);
-    renderBarcodePreview(result);
-    $('resultsCard').classList.remove('hidden');
+  function visibleColumnIndices(result) {
+    if (state.showAllColumns) {
+      return result.header.map(function (_, i) { return i; });
+    }
+    var start = result.columns.oLPN;
+    var end = result.columns.reserveLocn2;
+    if (start === undefined || end === undefined || end < start) {
+      return result.header.map(function (_, i) { return i; });
+    }
+    var idx = [];
+    for (var i = start; i <= end; i++) idx.push(i);
+    return idx;
   }
 
-  function renderPreview(result) {
-    var table = $('previewTable');
-    table.innerHTML = '';
+  function renderTable(tableEl, indices, rowIdxs, result) {
     var labelCol = result.columns.label;
     var needCol = result.columns.need;
+    tableEl.innerHTML = '';
 
     var thead = document.createElement('thead');
     var htr = document.createElement('tr');
-    result.header.forEach(function (h, i) {
+    indices.forEach(function (ci) {
       var th = document.createElement('th');
-      th.textContent = h;
-      if (i === labelCol) th.className = 'label-col';
+      th.textContent = result.header[ci];
+      if (ci === labelCol) th.className = 'label-col';
       htr.appendChild(th);
     });
     thead.appendChild(htr);
-    table.appendChild(thead);
+    tableEl.appendChild(thead);
 
     var tbody = document.createElement('tbody');
-    var limit = Math.min(result.rows.length, 400);
-    for (var r = 0; r < limit; r++) {
+    var limit = Math.min(rowIdxs.length, TABLE_LIMIT);
+    for (var n = 0; n < limit; n++) {
+      var r = rowIdxs[n];
       var row = result.rows[r];
       var tr = document.createElement('tr');
       if (result.duplicates[r]) tr.className = 'dup';
-      for (var c = 0; c < result.header.length; c++) {
+      indices.forEach(function (ci) {
         var td = document.createElement('td');
-        var val = row[c];
+        var val = row[ci];
         td.textContent = val == null ? '' : val;
         var classes = [];
-        if (c === labelCol) classes.push('label-col');
-        if (c === needCol && result.multiNeed[r]) classes.push('needs-multi');
+        if (ci === labelCol) classes.push('label-col');
+        if (ci === needCol && result.multiNeed[r]) classes.push('needs-multi');
         if (classes.length) td.className = classes.join(' ');
         tr.appendChild(td);
-      }
+      });
       tbody.appendChild(tr);
     }
-    table.appendChild(tbody);
+    tableEl.appendChild(tbody);
+    return rowIdxs.length > limit;
+  }
 
-    $('previewNote').textContent = result.rows.length > limit
-      ? 'Previewing the first ' + limit + ' of ' + result.rows.length + ' rows. The downloaded file has them all.'
+  function buildSection(def, result, cols) {
+    var wrap = document.createElement('div');
+    var h = document.createElement('h3');
+    h.className = 'subhead' + (def.accent ? ' subhead-warn' : '');
+    h.appendChild(document.createTextNode(def.title + ' '));
+    var count = document.createElement('span');
+    count.className = 'muted';
+    count.textContent = '(' + def.rows.length + ')';
+    h.appendChild(count);
+    wrap.appendChild(h);
+
+    if (def.note) {
+      var p = document.createElement('p');
+      p.className = 'hint';
+      p.style.margin = '-4px 0 10px';
+      p.textContent = def.note;
+      wrap.appendChild(p);
+    }
+
+    if (!def.rows.length) {
+      var none = document.createElement('div');
+      none.className = 'preview-note';
+      none.textContent = 'None.';
+      wrap.appendChild(none);
+      return wrap;
+    }
+
+    var pw = document.createElement('div');
+    pw.className = 'preview-wrap';
+    var table = document.createElement('table');
+    table.className = 'preview';
+    pw.appendChild(table);
+    wrap.appendChild(pw);
+
+    var truncated = renderTable(table, cols, def.rows, result);
+    var note = document.createElement('div');
+    note.className = 'preview-note';
+    note.textContent = truncated
+      ? 'Showing the first ' + TABLE_LIMIT + ' of ' + def.rows.length + '.'
       : '';
+    wrap.appendChild(note);
+    return wrap;
+  }
+
+  function renderTables(result) {
+    var cols = visibleColumnIndices(result);
+
+    var normalRows = result.groups.normal;
+    var truncated = renderTable($('previewTable'), cols, normalRows, result);
+    $('troublesCount').textContent = '(' + normalRows.length + ')';
+    $('previewNote').textContent = truncated
+      ? 'Showing the first ' + TABLE_LIMIT + ' of ' + normalRows.length +
+        ' rows. The download and print include all of them.'
+      : '';
+
+    var host = $('otherSections');
+    host.innerHTML = '';
+    host.appendChild(buildSection({
+      title: 'Alt form \u2014 EO pickup',
+      note: 'No active location, but a reserve location exists. Send an alt form so an EO can grab it. Not printed.',
+      rows: result.groups.alt
+    }, result, cols));
+    host.appendChild(buildSection({
+      title: 'Split cancel',
+      note: 'No active or reserve location, and no other item on the order is findable. Safe to split cancel. Not printed.',
+      rows: result.groups.split
+    }, result, cols));
+    host.appendChild(buildSection({
+      title: 'Do NOT split cancel yet',
+      accent: true,
+      note: 'No active or reserve location, but another item on the same order (same oLPN) is findable. Hold these until that item is found. Not printed.',
+      rows: result.groups.hold
+    }, result, cols));
+    host.appendChild(buildSection({
+      title: 'Duplicates',
+      note: 'Exact repeat rows (later copies of an earlier row). Not printed.',
+      rows: result.groups.duplicate
+    }, result, cols));
+
+    $('columnsBtn').textContent = state.showAllColumns ? 'Show fewer columns' : 'Show all columns';
+  }
+
+  function renderResults(result) {
+    var s = result.stats;
+    $('resultsSummary').textContent =
+      'Kept ' + s.keptRows + ' of ' + s.inputRows + ' rows \u2014 ' +
+      s.normalRows + ' trouble(s) to print, ' + s.altRows + ' alt form, ' +
+      s.splitRows + ' split cancel, ' + s.holdRows + ' hold, ' +
+      s.duplicateRows + ' duplicate.';
+
+    var box = $('statsBox');
+    box.innerHTML = '';
+    box.appendChild(statCard(String(s.normalRows), 'Troubles (print)'));
+    box.appendChild(statCard(String(s.altRows), 'Alt form (EO)'));
+    box.appendChild(statCard(String(s.splitRows), 'Split cancel'));
+    box.appendChild(statCard(String(s.holdRows), 'Hold (no split)'));
+    box.appendChild(statCard(String(s.duplicateRows), 'Duplicates'));
+    box.appendChild(statCard(String(s.multiNeedRows), 'Need > 1'));
+    box.appendChild(statCard(String(s.distinctTotes), 'Barcodes'));
+
+    renderTables(result);
+    renderBarcodePreview(result);
+    $('resultsCard').classList.remove('hidden');
   }
 
   // ------------------------------------------------------- Barcode preview
@@ -323,7 +422,8 @@
       return '<th>' + escapeHtml(c.name) + '</th>';
     }).join('') + '</tr></thead>';
 
-    var tbody = '<tbody>' + result.rows.map(function (row, ri) {
+    var tbody = '<tbody>' + result.groups.normal.map(function (ri) {
+      var row = result.rows[ri];
       var tds = cols.map(function (c) {
         var cls = '';
         if (c.name === 'Label') cls = ' class="lbl"';
@@ -438,28 +538,22 @@
     'Staging Locn': 14
   };
 
-  function buildWorkbook(result) {
-    var wb = new ExcelJS.Workbook();
-    wb.creator = 'Putwall Trouble Spreadsheet Editor';
-    wb.created = new Date();
-    wb.modified = new Date();
-
-    // ---- main sheet ----
-    var ws = wb.addWorksheet('Troubles', {
-      views: [{ state: 'frozen', ySplit: 1 }]
-    });
-
-    var header = ws.addRow(result.header);
-    header.height = 20;
-    header.eachCell(function (cell) {
+  function styleHeaderRow(headerRow) {
+    headerRow.height = 20;
+    headerRow.eachCell(function (cell) {
       cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
       cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF002E6D' } };
       cell.alignment = { vertical: 'middle', horizontal: 'center' };
     });
+  }
 
-    result.rows.forEach(function (rowData, i) {
-      var row = ws.addRow(rowData);
-      if (result.duplicates[i]) {
+  function addDataSheet(wb, name, result, rowIdxs, markDuplicates) {
+    var ws = wb.addWorksheet(name, { views: [{ state: 'frozen', ySplit: 1 }] });
+    styleHeaderRow(ws.addRow(result.header));
+
+    rowIdxs.forEach(function (ri) {
+      var row = ws.addRow(result.rows[ri]);
+      if (markDuplicates) {
         row.eachCell({ includeEmpty: true }, function (cell) {
           cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFC7CE' } };
           cell.font = { color: { argb: 'FF9C0006' } };
@@ -467,9 +561,9 @@
       }
       var labelCell = row.getCell(result.columns.label + 1);
       labelCell.alignment = { horizontal: 'center' };
-      if (!result.duplicates[i]) labelCell.font = { bold: true };
+      if (!markDuplicates) labelCell.font = { bold: true };
 
-      if (result.multiNeed[i]) {
+      if (result.multiNeed[ri]) {
         var needCell = row.getCell(result.columns.need + 1);
         needCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFEB3B' } };
         needCell.font = { bold: true, color: { argb: 'FF1C2530' } };
@@ -479,8 +573,23 @@
     result.header.forEach(function (h, i) {
       ws.getColumn(i + 1).width = COLUMN_WIDTHS[h] || 14;
     });
+    return ws;
+  }
 
-    // ---- barcode sheet ----
+  function buildWorkbook(result) {
+    var wb = new ExcelJS.Workbook();
+    wb.creator = 'Putwall Trouble Spreadsheet Editor';
+    wb.created = new Date();
+    wb.modified = new Date();
+
+    // ---- one sheet per section ----
+    addDataSheet(wb, 'Troubles', result, result.groups.normal, false);
+    addDataSheet(wb, 'Alt Form', result, result.groups.alt, false);
+    addDataSheet(wb, 'Split Cancel', result, result.groups.split, false);
+    addDataSheet(wb, 'Split Cancel HOLD', result, result.groups.hold, false);
+    addDataSheet(wb, 'Duplicates', result, result.groups.duplicate, true);
+
+    // ---- barcode sheet (printable troubles only) ----
     var bws = wb.addWorksheet('Barcodes', {
       views: [{ state: 'frozen', ySplit: 1 }]
     });
@@ -670,6 +779,10 @@
 
     $('downloadBtn').addEventListener('click', downloadEdited);
     $('printBtn').addEventListener('click', printDocument);
+    $('columnsBtn').addEventListener('click', function () {
+      state.showAllColumns = !state.showAllColumns;
+      if (state.result) renderTables(state.result);
+    });
     $('resetBtn').addEventListener('click', reset);
   }
 

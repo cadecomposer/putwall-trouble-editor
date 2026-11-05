@@ -7,13 +7,20 @@ spreadsheet in a few clicks:
 2. **Sort** by the first `Active Locn` column, Z-A.
 3. **Add a `Label` column** to the right of `Tote Gid`, numbering the distinct
    tote numbers top-to-bottom (blanks ignored, repeated totes share a number).
-4. **Generate scannable Code 128 barcodes** for every distinct tote, each shown
-   next to its label number, on a dedicated **Barcodes** sheet.
-5. **Mark duplicate rows red** (only the later copies, never the first).
+4. **Sort every kept row into a section** (see below):
+   - **Troubles** - has an active location. These are the printable ones.
+   - **Alt form** - no active location, but a reserve location exists. Send an
+     alt form so an EO can grab it.
+   - **Split cancel** - no active and no reserve location, and no other item on
+     the same order is findable. Safe to split cancel.
+   - **Do NOT split cancel yet** - no active/reserve, but another item on the
+     **same order** (same `oLPN`) is findable, so hold it until that item is found.
+   - **Duplicates** - exact repeat rows (later copies of an earlier row).
+5. **Generate scannable Code 128 barcodes** for the printable troubles' totes.
 6. **Highlight the `Need` cell yellow** when it is more than 1.
 7. **Preview the barcodes** right in the page.
-8. **Download** the edited `.xlsx`, or **print** a document with the troubles
-   table (landscape, 10pt) followed by a page of barcode labels.
+8. **Download** the edited `.xlsx` (one sheet per section), or **print** the
+   troubles table plus a page of barcode labels.
 
 Everything runs in the browser. No file, order, item or tote data is ever
 uploaded anywhere.
@@ -47,7 +54,7 @@ python3 build.py        # writes dist/putwall-trouble-editor.html
 
 ```bash
 node test/test-processor.js
-# or: node test/test-processor.js "OC-CLEARING-02 - ....xlsx" TRBL-PW-01,TRBL-PW-05
+# or: node test/test-processor.js "OC-CLEARING-02.xlsx" TRBL-PW-01,TRBL-PW-05
 ```
 
 ---
@@ -57,28 +64,42 @@ node test/test-processor.js
 1. Tick the `TRBL-PW-01` … `TRBL-PW-20` locations you are working today.
    (`Select all 20` and `Clear` are there if you need them.)
 2. Drag the OC Clearing `.xlsx` onto the box, or click to choose the file.
-3. Check the preview. Duplicates are shaded red, and the generated barcodes
-   appear in the **Barcodes** section below the table.
-4. Click **Download .xlsx**, or **Print sheet + barcodes**.
+3. Read the sections:
+   - **Troubles** (with barcodes) is the printable list.
+   - **Alt form**, **Split cancel**, **Do NOT split cancel yet** and
+     **Duplicates** are the special-handling lists. None of them print.
+4. By default the tables show only the useful columns, from `oLPN` through
+   `Reserve Locn 2`. Click **Show all columns** to reveal the rest
+   (`Time in OC`, `Order Date`, `Wave`, `iLPN`, `iLPN2`, `Staging Locn`), and
+   click again to hide them.
+5. Click **Download .xlsx**, or **Print sheet + barcodes**.
 
 Changing the location ticks after a file is loaded re-runs the edit instantly,
 so you can see the effect without re-uploading.
 
+### Why "Do NOT split cancel yet"?
+
+Anything with the same `oLPN` is the same order. If an order is missing an item
+you can find (it has an active or reserve location) **and** an item you cannot
+find, the unfindable item must not be split-cancelled until the findable one is
+resolved. Those rows are listed under **Do NOT split cancel yet**. The check is
+done against the whole file, so it also catches a findable item that sits at a
+location you did not select.
+
 ### Printing
 
 **Print sheet + barcodes** opens your browser's print dialog (choose a printer
-or *Save as PDF*) with two parts:
+or *Save as PDF*) with two parts, both landscape:
 
-- **Page 1 — the troubles table**, landscape, 10pt, limited to the columns
-  `Tote Gid` through the first `Reserve Locn` (i.e. `Tote Gid`, `Label`, `Item`,
-  `Need`, `Active Locn`, `Active Locn 2`, `Active OH`, `Reserve Locn`).
-  Duplicate rows keep their red shading, and `Need` cells above 1 are yellow.
-- **Following pages — the barcode labels**, also landscape, one block per
-  distinct tote with the label number above a Code 128 barcode and the tote
-  number below.
+- **Page 1 — the troubles table**, 10pt, limited to the columns `Tote Gid`
+  through the first `Reserve Locn` (i.e. `Tote Gid`, `Label`, `Item`, `Need`,
+  `Active Locn`, `Active Locn 2`, `Active OH`, `Reserve Locn`). `Need` cells
+  above 1 are yellow.
+- **Following pages — the barcode labels**, one block per printable tote with
+  the label number above a Code 128 barcode and the tote number below.
 
-The barcode and colours are always the same as what you download, so the printed
-page and the spreadsheet agree.
+Only the printable **Troubles** print. The alt-form, split-cancel, hold and
+duplicate sections are never printed.
 
 ### Appearance
 
@@ -91,23 +112,21 @@ document is always light so it prints cleanly either way.
 
 ## What the output contains
 
-**Sheet "Troubles"** - the filtered and sorted data, with:
+The downloaded `.xlsx` has one sheet per section:
 
-- a new `Label` column immediately to the right of `Tote Gid`;
-- duplicate rows filled light red (fill `FFC7CE`, font `9C0006`);
+- **Troubles** - printable rows (active location present).
+- **Alt Form** - no active location, reserve location present.
+- **Split Cancel** - no active or reserve location, order has nothing findable.
+- **Split Cancel HOLD** - no active/reserve, but the order has a findable item.
+- **Duplicates** - later exact copies of an earlier row (filled light red).
+- **Barcodes** - one row per printable tote: the label number, the tote number,
+  and a Code 128 barcode image.
+
+Every data sheet also has:
+
+- the new `Label` column immediately to the right of `Tote Gid`;
 - `Need` cells greater than 1 filled yellow (fill `FFEB3B`);
 - a frozen header row.
-
-**Sheet "Barcodes"** - one row per distinct tote, containing the label number,
-the tote number, and a Code 128 barcode image encoding the tote number.
-
-Example from the included sample (locations 01, 04, 05):
-
-```
-Label   Tote Gid   Barcode
-1       T710356    [||||| Code128 |||||]   -> decodes to "T710356"
-2       T184024    [||||| Code128 |||||]   -> decodes to "T184024"
-```
 
 ---
 
@@ -122,14 +141,16 @@ These are the choices the tool makes. They are all easy to change - see
 | Filter column | The `Location` column (that is where `TRBL-PW-xx` appears). Matching ignores case and surrounding spaces. |
 | Sort | First `Active Locn` column, descending (Z-A), case-insensitive. Blank values sort to the bottom. Ties keep their original order (stable). |
 | Labels | Distinct tote values numbered `1, 2, 3, …` in the post-sort top-to-bottom order. Blank tote cells get a blank label. The same tote value always gets the same number. |
-| Duplicates | The entire original row must match. Comparison is case-sensitive and includes every original column. The first occurrence is left alone; all later copies are marked. |
-| Barcode | Code 128, encoding the **tote number**. The label number is printed in the cell beside it. |
-| Output layout | Two fresh, clean sheets (`Troubles`, `Barcodes`). The original report's title rows and formatting are not carried over. |
-| Duplicate colour | Light red - visible in Excel and Google Sheets, and still readable when printed. |
+| Active location | The first `Active Locn` column being non-empty. |
+| Reserve location | The first `Reserve Locn` column being non-empty. (`Reserve Locn 2` is only ever filled when the first is, so it is ignored.) |
+| Sections | normal = active; alt = no active but reserve; split = neither; hold = split whose order has a findable item; duplicate = later exact copy. |
+| Order grouping | Rows are grouped by `oLPN` across the whole file for the hold rule. |
+| Duplicates | The entire original row must match (every column except the derived `Label`). The first occurrence keeps its section; later copies go to **Duplicates**. |
+| Barcodes | Code 128, encoding the **tote number**, generated only for the printable **Troubles**. |
+| Column toggle | Web tables default to `oLPN` … `Reserve Locn 2`; the button reveals every column. The `.xlsx` always contains every column. |
+| Print columns | Always `Tote Gid` … first `Reserve Locn`, landscape, 10pt. |
 
-If any of these should behave differently (for example, sort A-Z, put barcodes
-on the same sheet, or encode the label number in the barcode instead of the
-tote), it is a small change - see below.
+If any of these should behave differently, it is a small change - see below.
 
 ---
 
@@ -138,15 +159,15 @@ tote), it is a small change - see below.
 All the spreadsheet logic lives in **`src/processor.js`**; the UI and the
 workbook writing live in **`src/app.js`**.
 
-- **Duplicate colour:** `src/app.js`, search for `FFFFC7CE` (fill) and
-  `FF9C0006` (font).
-- **Barcode format / size:** `src/app.js`, the `makeBarcode()` function.
-  Change `format: 'CODE128'` to `'CODE39'`, or adjust `width`/`height`.
-- **What the barcode encodes:** in `src/app.js`, `makeBarcode(b.tote)` - pass
-  `String(b.label)` instead if you want the label number encoded.
-- **Barcodes on the main sheet:** add the images to `ws` instead of the separate
-  `Barcodes` worksheet in `buildWorkbook()`.
-- **Sort direction / filter column:** `processData()` in `src/processor.js`.
+- **Section rules:** `processData()` in `src/processor.js` (the `categories`
+  mapping and the `orderHasFindable` map).
+- **Need highlight colour:** search for `FFFFEB3B` / `#ffeb3b`.
+- **Duplicate colour:** search for `FFFFC7CE` (fill) and `FF9C0006` (font).
+- **Barcode format / size:** `src/app.js`, the `makeBarcode()` /
+  `makeBarcodeSvg()` functions. Change `format: 'CODE128'` to `'CODE39'`, etc.
+- **Default web columns:** `visibleColumnIndices()` in `src/app.js`.
+- **Printed columns:** the `PRINT_COLUMNS` array in `src/app.js`.
+- **Sheet names:** `buildWorkbook()` in `src/app.js`.
 
 After editing, run `python3 build.py` to regenerate the single-file version.
 
@@ -156,8 +177,9 @@ After editing, run `python3 build.py` to regenerate the single-file version.
 
 ```
 index.html                  page shell (references the files below)
-src/styles.css              styles
-src/processor.js            pure logic: header detect, filter, sort, label, duplicates
+src/styles.css              styles (light + dark)
+src/processor.js            pure logic: header detect, filter, sort, label,
+                            classify sections, duplicates, barcodes
 src/app.js                  UI, file reading (SheetJS), workbook writing (ExcelJS)
 vendor/xlsx.full.min.js     SheetJS - reads the uploaded workbook
 vendor/exceljs.min.js       ExcelJS - writes the output workbook + barcode images

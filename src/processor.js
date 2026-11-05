@@ -202,11 +202,50 @@
       return false;
     });
 
-    // 5. Barcode list: distinct totes in top-to-bottom (label) order.
+    // 5. Classify each row:
+    //    - duplicate: a later exact copy of an earlier row
+    //    - normal:    has an active location (the printable troubles)
+    //    - alt:       no active location, but a reserve location exists
+    //                 (send an alt form so EO can grab it)
+    //    - split:     no active location and no reserve location (split cancel)
+    //    - hold:      a would-be split cancel, but another item on the SAME
+    //                 order (same oLPN) is findable, so do NOT split cancel yet.
+    var activeIdx = outCols.activeLocn;
+    var reserveIdx = outCols.reserveLocn;
+    var olpnIdx = outCols.oLPN;
+    var srcActive = srcCols.activeLocn;
+    var srcReserve = srcCols.reserveLocn;
+    var srcOlpn = srcCols.oLPN;
+    var trimText = function (v) { return String(v == null ? '' : v).trim(); };
+
+    // Which orders (oLPN) have at least one findable item, across the WHOLE
+    // file (not just the selected locations), so we never cancel prematurely.
+    var orderHasFindable = {};
+    dataRows.forEach(function (row) {
+      var olpn = trimText(row[srcOlpn]);
+      if (olpn === '') return;
+      if (trimText(row[srcActive]) !== '' || trimText(row[srcReserve]) !== '') {
+        orderHasFindable[olpn] = true;
+      }
+    });
+
+    var categories = outRows.map(function (row, i) {
+      if (duplicates[i]) return 'duplicate';
+      if (trimText(row[activeIdx]) !== '') return 'normal';
+      if (trimText(row[reserveIdx]) !== '') return 'alt';
+      return orderHasFindable[trimText(row[olpnIdx])] ? 'hold' : 'split';
+    });
+
+    var groups = { normal: [], alt: [], split: [], hold: [], duplicate: [] };
+    categories.forEach(function (cat, i) { groups[cat].push(i); });
+
+    // 6. Barcode list: distinct totes on the printable (normal) rows only,
+    //    in top-to-bottom (label) order.
     var barcodes = [];
     var emitted = {};
     outRows.forEach(function (row, i) {
-      var tote = String(row[toteIdx] == null ? '' : row[toteIdx]).trim();
+      if (categories[i] !== 'normal') return;
+      var tote = trimText(row[toteIdx]);
       if (tote === '' || emitted[tote]) return;
       emitted[tote] = true;
       barcodes.push({ label: labelByTote[tote], tote: tote, rowIndex: i });
@@ -214,7 +253,7 @@
 
     var duplicateCount = duplicates.filter(Boolean).length;
 
-    // 6. Flag rows whose "Need" is more than 1 (these get highlighted yellow).
+    // 7. Flag rows whose "Need" is more than 1 (these get highlighted yellow).
     var needIdx = outCols.need;
     var multiNeed = outRows.map(function (row) {
       if (needIdx === undefined) return false;
@@ -232,12 +271,18 @@
       columns: outCols,
       duplicates: duplicates,
       multiNeed: multiNeed,
+      categories: categories,
+      groups: groups,
       barcodes: barcodes,
       stats: {
         headerIndex: headerIndex,
         inputRows: dataRows.length,
         keptRows: outRows.length,
         filteredOut: dataRows.length - outRows.length,
+        normalRows: groups.normal.length,
+        altRows: groups.alt.length,
+        splitRows: groups.split.length,
+        holdRows: groups.hold.length,
         duplicateRows: duplicateCount,
         multiNeedRows: multiNeedCount,
         distinctTotes: barcodes.length

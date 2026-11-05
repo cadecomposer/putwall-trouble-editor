@@ -316,6 +316,7 @@ table.preview tr.dup td.needs-multi {
   font-size: 15px;
   color: var(--accent-text);
 }
+.subhead-warn { color: var(--error); }
 .muted { color: var(--muted); font-weight: 400; }
 
 .barcode-grid {
