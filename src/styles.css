@@ -35,9 +35,11 @@
   --label-col-bg: #f6f8fc;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    color-scheme: dark;
+/* Dark values apply when the resolved theme is dark. Auto mode is resolved in
+   JavaScript (before first paint) and written to data-theme, so the browser
+   preference is still followed by default. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
 
     --brand: #123c72;
     --brand-strong: #0d2b54;
@@ -71,7 +73,6 @@
     --stat-bg: #1b232d;
     --th-bg: #1d2833;
     --label-col-bg: #1a222c;
-  }
 }
 
 * { box-sizing: border-box; }
@@ -91,6 +92,14 @@ header.app-header {
   color: #fff;
   padding: 20px 24px;
 }
+.app-header-inner {
+  max-width: 1080px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
 header.app-header h1 {
   margin: 0 0 4px;
   font-size: 22px;
@@ -100,6 +109,23 @@ header.app-header p {
   color: var(--header-sub);
   font-size: 13px;
 }
+.theme-toggle {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, .12);
+  border: 1px solid rgba(255, 255, 255, .4);
+  color: #fff;
+  border-radius: 8px;
+  padding: 7px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.theme-toggle:hover { background: rgba(255, 255, 255, .24); }
+.theme-toggle .theme-icon { font-size: 15px; line-height: 1; }
 
 main {
   max-width: 1080px;

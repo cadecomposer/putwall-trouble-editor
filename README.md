@@ -80,10 +80,10 @@ page and the spreadsheet agree.
 
 ### Appearance
 
-The page follows your browser/OS colour-scheme setting automatically: a light
-theme by default, switching to a dark theme when your system is set to dark
-mode. There is no toggle to manage. The printed document is always light so it
-prints cleanly either way.
+The page follows your browser/OS colour-scheme setting automatically by
+default. A button in the top-right corner switches between **Auto**, **Light**
+and **Dark**, and the choice is remembered on that computer. The printed
+document is always light so it prints cleanly either way.
 
 ---
 

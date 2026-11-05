@@ -4,6 +4,19 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Putwall Trouble Spreadsheet Editor</title>
+  <script>
+    /* Resolve the theme before first paint so there is no flash. Default is
+       "auto", which follows the browser/OS preference. */
+    (function () {
+      try {
+        var mode = localStorage.getItem('pwTheme') || 'auto';
+        var dark = mode === 'dark' ||
+          (mode === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+        document.documentElement.setAttribute('data-theme-mode', mode);
+      } catch (e) { /* ignore */ }
+    })();
+  </script>
   <style>
 :root {
   color-scheme: light;
@@ -42,9 +55,11 @@
   --label-col-bg: #f6f8fc;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    color-scheme: dark;
+/* Dark values apply when the resolved theme is dark. Auto mode is resolved in
+   JavaScript (before first paint) and written to data-theme, so the browser
+   preference is still followed by default. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
 
     --brand: #123c72;
     --brand-strong: #0d2b54;
@@ -78,7 +93,6 @@
     --stat-bg: #1b232d;
     --th-bg: #1d2833;
     --label-col-bg: #1a222c;
-  }
 }
 
 * { box-sizing: border-box; }
@@ -98,6 +112,14 @@ header.app-header {
   color: #fff;
   padding: 20px 24px;
 }
+.app-header-inner {
+  max-width: 1080px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
 header.app-header h1 {
   margin: 0 0 4px;
   font-size: 22px;
@@ -107,6 +129,23 @@ header.app-header p {
   color: var(--header-sub);
   font-size: 13px;
 }
+.theme-toggle {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, .12);
+  border: 1px solid rgba(255, 255, 255, .4);
+  color: #fff;
+  border-radius: 8px;
+  padding: 7px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.theme-toggle:hover { background: rgba(255, 255, 255, .24); }
+.theme-toggle .theme-icon { font-size: 15px; line-height: 1; }
 
 main {
   max-width: 1080px;
@@ -344,8 +383,16 @@ footer.app-footer code {
 </head>
 <body>
   <header class="app-header">
-    <h1>Putwall Trouble Spreadsheet Editor</h1>
-    <p>Turn an OC Clearing export into a filtered, sorted, barcode-labeled sheet in a few clicks.</p>
+    <div class="app-header-inner">
+      <div>
+        <h1>Putwall Trouble Spreadsheet Editor</h1>
+        <p>Turn an OC Clearing export into a filtered, sorted, barcode-labeled sheet in a few clicks.</p>
+      </div>
+      <button type="button" class="theme-toggle" id="themeToggle" title="Theme: Auto (click to change)">
+        <span class="theme-icon" id="themeIcon" aria-hidden="true">&#9680;</span>
+        <span id="themeLabel">Auto</span>
+      </button>
+    </div>
   </header>
 
   <main>
@@ -1283,11 +1330,64 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     setStatus('');
   }
 
+  // ------------------------------------------------------------------- Theme
+
+  var THEME_KEY = 'pwTheme';
+  var THEME_MODES = ['auto', 'light', 'dark'];
+  var THEME_LABELS = { auto: 'Auto', light: 'Light', dark: 'Dark' };
+  var THEME_ICONS = { auto: '\u25D0', light: '\u2600\uFE0F', dark: '\u263E' };
+
+  function getThemeMode() {
+    try { return localStorage.getItem(THEME_KEY) || 'auto'; } catch (e) { return 'auto'; }
+  }
+
+  function themePrefersDark(mode) {
+    return mode === 'dark' ||
+      (mode === 'auto' && window.matchMedia &&
+        window.matchMedia('(prefers-color-scheme: dark)').matches);
+  }
+
+  function applyTheme(mode) {
+    var root = document.documentElement;
+    root.setAttribute('data-theme', themePrefersDark(mode) ? 'dark' : 'light');
+    root.setAttribute('data-theme-mode', mode);
+
+    var name = THEME_LABELS[mode] || THEME_LABELS.auto;
+    var icon = $('themeIcon');
+    var label = $('themeLabel');
+    var btn = $('themeToggle');
+    if (icon) icon.textContent = THEME_ICONS[mode] || THEME_ICONS.auto;
+    if (label) label.textContent = name;
+    if (btn) {
+      btn.setAttribute('title', 'Theme: ' + name + ' (click to change)');
+      btn.setAttribute('aria-label',
+        'Theme: ' + name + '. Click to switch between auto, light and dark.');
+    }
+  }
+
+  function cycleTheme() {
+    var mode = getThemeMode();
+    var next = THEME_MODES[(THEME_MODES.indexOf(mode) + 1) % THEME_MODES.length];
+    try { localStorage.setItem(THEME_KEY, next); } catch (e) { /* ignore */ }
+    applyTheme(next);
+  }
+
   // ------------------------------------------------------------------ Wiring
 
   function init() {
     buildLocations();
     updateLocCount();
+
+    applyTheme(getThemeMode());
+    $('themeToggle').addEventListener('click', cycleTheme);
+    if (window.matchMedia) {
+      var schemeQuery = window.matchMedia('(prefers-color-scheme: dark)');
+      var onSchemeChange = function () {
+        if (getThemeMode() === 'auto') applyTheme('auto');
+      };
+      if (schemeQuery.addEventListener) schemeQuery.addEventListener('change', onSchemeChange);
+      else if (schemeQuery.addListener) schemeQuery.addListener(onSchemeChange);
+    }
 
     $('selectAllBtn').addEventListener('click', function () { setAllLocations(true); });
     $('clearAllBtn').addEventListener('click', function () { setAllLocations(false); });
@@ -1338,7 +1438,10 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   // Exposed so the print/preview can be inspected and tested.
   window.PWApp = {
     buildPrintHtml: function () { return state.result ? buildPrintHtml(state.result) : ''; },
-    state: state
+    state: state,
+    getThemeMode: getThemeMode,
+    applyTheme: applyTheme,
+    cycleTheme: cycleTheme
   };
 
   if (document.readyState === 'loading') {

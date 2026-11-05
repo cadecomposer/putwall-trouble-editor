@@ -555,11 +555,64 @@
     setStatus('');
   }
 
+  // ------------------------------------------------------------------- Theme
+
+  var THEME_KEY = 'pwTheme';
+  var THEME_MODES = ['auto', 'light', 'dark'];
+  var THEME_LABELS = { auto: 'Auto', light: 'Light', dark: 'Dark' };
+  var THEME_ICONS = { auto: '\u25D0', light: '\u2600\uFE0F', dark: '\u263E' };
+
+  function getThemeMode() {
+    try { return localStorage.getItem(THEME_KEY) || 'auto'; } catch (e) { return 'auto'; }
+  }
+
+  function themePrefersDark(mode) {
+    return mode === 'dark' ||
+      (mode === 'auto' && window.matchMedia &&
+        window.matchMedia('(prefers-color-scheme: dark)').matches);
+  }
+
+  function applyTheme(mode) {
+    var root = document.documentElement;
+    root.setAttribute('data-theme', themePrefersDark(mode) ? 'dark' : 'light');
+    root.setAttribute('data-theme-mode', mode);
+
+    var name = THEME_LABELS[mode] || THEME_LABELS.auto;
+    var icon = $('themeIcon');
+    var label = $('themeLabel');
+    var btn = $('themeToggle');
+    if (icon) icon.textContent = THEME_ICONS[mode] || THEME_ICONS.auto;
+    if (label) label.textContent = name;
+    if (btn) {
+      btn.setAttribute('title', 'Theme: ' + name + ' (click to change)');
+      btn.setAttribute('aria-label',
+        'Theme: ' + name + '. Click to switch between auto, light and dark.');
+    }
+  }
+
+  function cycleTheme() {
+    var mode = getThemeMode();
+    var next = THEME_MODES[(THEME_MODES.indexOf(mode) + 1) % THEME_MODES.length];
+    try { localStorage.setItem(THEME_KEY, next); } catch (e) { /* ignore */ }
+    applyTheme(next);
+  }
+
   // ------------------------------------------------------------------ Wiring
 
   function init() {
     buildLocations();
     updateLocCount();
+
+    applyTheme(getThemeMode());
+    $('themeToggle').addEventListener('click', cycleTheme);
+    if (window.matchMedia) {
+      var schemeQuery = window.matchMedia('(prefers-color-scheme: dark)');
+      var onSchemeChange = function () {
+        if (getThemeMode() === 'auto') applyTheme('auto');
+      };
+      if (schemeQuery.addEventListener) schemeQuery.addEventListener('change', onSchemeChange);
+      else if (schemeQuery.addListener) schemeQuery.addListener(onSchemeChange);
+    }
 
     $('selectAllBtn').addEventListener('click', function () { setAllLocations(true); });
     $('clearAllBtn').addEventListener('click', function () { setAllLocations(false); });
@@ -610,7 +663,10 @@
   // Exposed so the print/preview can be inspected and tested.
   window.PWApp = {
     buildPrintHtml: function () { return state.result ? buildPrintHtml(state.result) : ''; },
-    state: state
+    state: state,
+    getThemeMode: getThemeMode,
+    applyTheme: applyTheme,
+    cycleTheme: cycleTheme
   };
 
   if (document.readyState === 'loading') {

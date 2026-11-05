@@ -4,12 +4,33 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Putwall Trouble Spreadsheet Editor</title>
+  <script>
+    /* Resolve the theme before first paint so there is no flash. Default is
+       "auto", which follows the browser/OS preference. */
+    (function () {
+      try {
+        var mode = localStorage.getItem('pwTheme') || 'auto';
+        var dark = mode === 'dark' ||
+          (mode === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+        document.documentElement.setAttribute('data-theme-mode', mode);
+      } catch (e) { /* ignore */ }
+    })();
+  </script>
   <link rel="stylesheet" href="src/styles.css" />
 </head>
 <body>
   <header class="app-header">
-    <h1>Putwall Trouble Spreadsheet Editor</h1>
-    <p>Turn an OC Clearing export into a filtered, sorted, barcode-labeled sheet in a few clicks.</p>
+    <div class="app-header-inner">
+      <div>
+        <h1>Putwall Trouble Spreadsheet Editor</h1>
+        <p>Turn an OC Clearing export into a filtered, sorted, barcode-labeled sheet in a few clicks.</p>
+      </div>
+      <button type="button" class="theme-toggle" id="themeToggle" title="Theme: Auto (click to change)">
+        <span class="theme-icon" id="themeIcon" aria-hidden="true">&#9680;</span>
+        <span id="themeLabel">Auto</span>
+      </button>
+    </div>
   </header>
 
   <main>
