@@ -10,7 +10,9 @@ spreadsheet in a few clicks:
 4. **Generate scannable Code 128 barcodes** for every distinct tote, each shown
    next to its label number, on a dedicated **Barcodes** sheet.
 5. **Mark duplicate rows red** (only the later copies, never the first).
-6. **Download** the edited `.xlsx`.
+6. **Preview the barcodes** right in the page.
+7. **Download** the edited `.xlsx`, or **print** a document with the troubles
+   table (landscape, 10pt) followed by a page of barcode labels.
 
 Everything runs in the browser. No file, order, item or tote data is ever
 uploaded anywhere.
@@ -54,11 +56,27 @@ node test/test-processor.js
 1. Tick the `TRBL-PW-01` … `TRBL-PW-20` locations you are working today.
    (`Select all 20` and `Clear` are there if you need them.)
 2. Drag the OC Clearing `.xlsx` onto the box, or click to choose the file.
-3. Check the preview. Duplicates are shaded red.
-4. Click **Download .xlsx**.
+3. Check the preview. Duplicates are shaded red, and the generated barcodes
+   appear in the **Barcodes** section below the table.
+4. Click **Download .xlsx**, or **Print sheet + barcodes**.
 
 Changing the location ticks after a file is loaded re-runs the edit instantly,
 so you can see the effect without re-uploading.
+
+### Printing
+
+**Print sheet + barcodes** opens your browser's print dialog (choose a printer
+or *Save as PDF*) with two parts:
+
+- **Page 1 — the troubles table**, landscape, 10pt, limited to the columns
+  `Tote Gid` through the first `Reserve Locn` (i.e. `Tote Gid`, `Label`, `Item`,
+  `Need`, `Active Locn`, `Active Locn 2`, `Active OH`, `Reserve Locn`).
+  Duplicate rows keep their red shading.
+- **Following pages — the barcode labels**, portrait, one block per distinct
+  tote with the label number above a Code 128 barcode and the tote number below.
+
+The barcode and colours are always the same as what you download, so the printed
+page and the spreadsheet agree.
 
 ---
 
