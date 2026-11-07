@@ -16,9 +16,8 @@ const XLSX = require(path.join(__dirname, '..', 'vendor', 'xlsx.full.min.js'));
 const PW = require(path.join(__dirname, '..', 'src', 'processor.js'));
 const sample = require(path.join(__dirname, 'make-sample-sections.js'));
 
-if (!fs.existsSync(sample.OUT)) {
-  sample.write();
-}
+// Always regenerate so the sample stays in sync with the rules under test.
+sample.write();
 
 const wb = XLSX.read(fs.readFileSync(sample.OUT), { type: 'buffer' });
 const grid = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {
@@ -36,12 +35,23 @@ function catOf(oLPN, tote) {
   return '(missing)';
 }
 
+function catByActive(oLPN, tote, active) {
+  for (let i = 0; i < res.rows.length; i++) {
+    if (String(res.rows[i][c.oLPN]) === oLPN &&
+        String(res.rows[i][c.toteGid]) === tote &&
+        String(res.rows[i][c.activeLocn]) === active) {
+      return res.categories[i];
+    }
+  }
+  return '(missing)';
+}
+
 // --- expectations ---------------------------------------------------------
-assert.strictEqual(res.stats.normalRows, 3, 'normal rows');
+assert.strictEqual(res.stats.normalRows, 4, 'normal rows');
 assert.strictEqual(res.stats.altRows, 1, 'alt rows');
 assert.strictEqual(res.stats.splitRows, 1, 'split rows');
 assert.strictEqual(res.stats.holdRows, 1, 'hold rows');
-assert.strictEqual(res.stats.duplicateRows, 1, 'duplicate rows');
+assert.strictEqual(res.stats.duplicateRows, 2, 'duplicate rows');
 
 assert.strictEqual(catOf('OLPN-A', 'T100'), 'normal', 'A/T100 normal');
 assert.strictEqual(catOf('OLPN-B', 'T200'), 'alt', 'B/T200 alt');
@@ -49,6 +59,10 @@ assert.strictEqual(catOf('OLPN-C', 'T300'), 'split', 'C/T300 split');
 assert.strictEqual(catOf('OLPN-D', 'T401'), 'normal', 'D/T401 normal');
 assert.strictEqual(catOf('OLPN-D', 'T400'), 'hold', 'D/T400 hold (order is findable)');
 assert.strictEqual(catOf('OLPN-B', 'T201'), 'normal', 'B/T201 normal');
+
+// Same oLPN/tote/item/need but a different active location is NOT a duplicate.
+assert.strictEqual(catByActive('OLPN-A', 'T100', 'B999-99-Z9'), 'normal',
+  'same fields, different active location, is not a duplicate');
 
 // The alt row keeps its reserve location and has no active location.
 const altIdx = res.groups.alt[0];

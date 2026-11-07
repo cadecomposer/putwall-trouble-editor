@@ -8,6 +8,10 @@
  *   HOLD     OLPN-D / T400   no active/reserve, but order D is findable
  *   split    OLPN-C / T300   no active/reserve, order C has nothing findable
  *   dup      OLPN-A / T100   exact repeat of the first normal row
+ *   dup      OLPN-A / T100   same oLPN/tote/item/need/active as the first row,
+ *                            but a different "Time in OC" - still a duplicate
+ *   normal   OLPN-A / T100   same fields but a DIFFERENT active location, so
+ *                            it is NOT a duplicate
  *   normal   OLPN-B / T201   active location present
  *
  * It contains NO real order data, but it is still written as .xlsx and therefore
@@ -30,9 +34,9 @@ const HEADER = [
   'Reserve Locn', 'Reserve Locn 2', 'iLPN', 'iLPN2', 'Staging Locn'
 ];
 
-function row(olpn, tote, item, need, active, reserve) {
+function row(olpn, tote, item, need, active, reserve, timeInOC) {
   return [
-    '<2 Hours', '11/05', 'W1', olpn, '', 'TRBL-PW-02', 'OC',
+    timeInOC || '<2 Hours', '11/05', 'W1', olpn, '', 'TRBL-PW-02', 'OC',
     tote, item, String(need), active, active, '1', reserve, '', '', '', ''
   ];
 }
@@ -48,6 +52,8 @@ function buildAoa() {
     row('OLPN-D', 'T401', '444', 1, 'E100-05-E5', ''),   // normal (order D findable)
     row('OLPN-D', 'T400', '555', 1, '', ''),             // HOLD
     row('OLPN-A', 'T100', '111', 1, 'B100-01-A1', ''),   // duplicate of first normal
+    row('OLPN-A', 'T100', '111', 1, 'B100-01-A1', '', '4 Hours'), // duplicate: only Time in OC differs
+    row('OLPN-A', 'T100', '111', 1, 'B999-99-Z9', ''),   // NOT a duplicate: active location differs
     row('OLPN-B', 'T201', '777', 1, 'F100-06-F6', '')    // normal
   ];
 }

@@ -15,13 +15,16 @@ spreadsheet in a few clicks:
      the same order is findable. Safe to split cancel.
    - **Do NOT split cancel yet** - no active/reserve, but another item on the
      **same order** (same `oLPN`) is findable, so hold it until that item is found.
-   - **Duplicates** - exact repeat rows (later copies of an earlier row).
+   - **Duplicates** - later copies of an earlier row that share the same
+     `oLPN`, `Tote Gid`, `Item`, `Need` and active location.
 5. **Generate scannable Code 128 barcodes** for the printable troubles' totes.
 6. **Highlight the `Need` cell yellow** when it is more than 1.
 7. **Preview the barcodes** right in the page.
 8. **Download** the edited `.xlsx` (one sheet per section), or **print** the
    troubles table — optionally split across pages for multiple pickers — plus a
    page of barcode labels.
+9. **Fill in and print an alt form** for items that only have a reserve
+   location, adding the location and case that are not on the export.
 
 Everything runs in the browser. No file, order, item or tote data is ever
 uploaded anywhere.
@@ -74,10 +77,13 @@ local (it is a spreadsheet, so it is `.gitignore`d and never published).
    - **Alt form**, **Split cancel**, **Do NOT split cancel yet** and
      **Duplicates** are the special-handling lists. None of them print.
 4. By default the tables show only the useful columns, from `oLPN` through
-   `Reserve Locn 2`. Click **Show all columns** to reveal the rest
-   (`Time in OC`, `Order Date`, `Wave`, `iLPN`, `iLPN2`, `Staging Locn`), and
-   click again to hide them.
-5. Click **Download .xlsx**, or **Print sheet + barcodes**.
+   `Reserve Locn` (`OC Mod` and `Reserve Locn 2` are hidden). Click **Show all
+   columns** to reveal the rest (`Time in OC`, `Order Date`, `Wave`, `OC Mod`,
+   `iLPN`, `iLPN2`, `Reserve Locn 2`, `Staging Locn`), and click again to hide
+   them.
+5. Click **Print sheet + barcodes** (the highlighted button), or use
+   **Print sheet** / **Print barcodes** if you only need one part. **Download
+   .xlsx** saves the full workbook.
 
 Changing the location ticks after a file is loaded re-runs the edit instantly,
 so you can see the effect without re-uploading.
@@ -91,10 +97,46 @@ resolved. Those rows are listed under **Do NOT split cancel yet**. The check is
 done against the whole file, so it also catches a findable item that sits at a
 location you did not select.
 
+### Filling in and printing an alt form
+
+The **Alt form - EO pickup** section has two buttons above it:
+
+- **Fill in alt form info** opens a popup for the details that are not on the
+  OC Clearing export.
+- **Print alt form** prints the finished form.
+
+Both buttons are greyed out when there are no alt-form rows, and **Print alt
+form** stays greyed out until the form has been filled in and saved.
+
+The popup asks for a **Name** (shown at the top of the printed form), then one
+entry per alt-form row, numbered 1, 2, 3, ... in the order they appear on the
+page. Each entry has, in this order:
+
+| Field | Source |
+| --- | --- |
+| SKU | Filled in from the `Item` column. Read-only. |
+| Location | Typed by you. The `Reserve Locn` is deliberately *not* pre-filled, because a different location is sometimes picked. |
+| Case | Typed by you (usually the last 5 digits of the case number, which is not on the OC Clearing export). |
+| Qty | Filled in from the `Need` column. Read-only. |
+| oLPN | Filled in from the `oLPN` column, last 4 digits. Read-only. |
+
+The read-only fields are greyed out and cannot be edited. **Save** refuses to
+close the popup until the name and every Location and Case are filled in. The
+saved values are remembered while you print the form (so the same form can be
+printed at several locations) and are only cleared when you click **Start
+over**. The form prints portrait at 18px, one line per item, with the name at
+the top and a "Thank you!" at the bottom.
+
 ### Printing
 
 **Print sheet + barcodes** opens your browser's print dialog (choose a printer
-or *Save as PDF*) with two parts, both landscape:
+or *Save as PDF*) with two parts, both landscape. The other two buttons print
+just one part:
+
+- **Print sheet** prints only the troubles table.
+- **Print barcodes** prints only the barcode labels (no separate cover page).
+
+The full **Print sheet + barcodes** output is:
 
 - **The troubles table**, 10pt, limited to the columns `Tote Gid` through the
   first `Reserve Locn` (`Tote Gid`, `Label`, `Item`, `Need`, `Active Locn`,
@@ -104,8 +146,9 @@ or *Save as PDF*) with two parts, both landscape:
   above a Code 128 barcode and the tote number below, always as a single page
   at the end.
 
-Only the printable **Troubles** print. The alt-form, split-cancel, hold and
-duplicate sections are never printed.
+These three buttons print only the printable **Troubles** (and their barcodes).
+The split-cancel, hold and duplicate sections are never printed. The **Alt
+form** has its own dedicated print button (see above).
 
 #### Splitting the list across pages
 
@@ -116,9 +159,10 @@ When a run is big enough that several people will go and get the items, use the
   the same font size (nothing is shrunk).
 - Use **+ / −** to split the list into 2, 3, … pages. The split starts out even
   (halves, thirds, …).
-- Drag the divider sliders to move where each page begins. Each divider is the
-  last row on that page, and the preview shows a "Page N starts here" line.
-- **Even split** resets the dividers to an even division.
+- Drag the handles on the left of the Troubles table up and down to move where
+  each page begins. Each handle sits on its "Page N starts here" line; you can
+  also focus a handle and press the up/down arrow keys.
+- **Even split** resets the handles to an even division.
 
 ### Appearance
 
@@ -164,12 +208,12 @@ These are the choices the tool makes. They are all easy to change - see
 | Reserve location | The first `Reserve Locn` column being non-empty. (`Reserve Locn 2` is only ever filled when the first is, so it is ignored.) |
 | Sections | normal = active; alt = no active but reserve; split = neither; hold = split whose order has a findable item; duplicate = later exact copy. |
 | Order grouping | Rows are grouped by `oLPN` across the whole file for the hold rule. |
-| Duplicates | The entire original row must match (every column except the derived `Label`). The first occurrence keeps its section; later copies go to **Duplicates**. |
+| Duplicates | A row is a duplicate when its `oLPN`, `Tote Gid`, `Item`, `Need` and active location all match an earlier row. Other columns (e.g. `Time in OC`) may differ. The first occurrence keeps its section; later copies go to **Duplicates**. |
 | Barcodes | Code 128, encoding the **tote number**, generated only for the printable **Troubles**. |
-| Column toggle | Web tables default to `oLPN` … `Reserve Locn 2`; the button reveals every column. The `.xlsx` always contains every column. |
+| Column toggle | Web tables default to `oLPN` through `Reserve Locn`, skipping `OC Mod` and `Reserve Locn 2`; the button reveals every column. The `.xlsx` always contains every column. |
 | Preview length | Every row is rendered on the page, so the whole list is visible at once (no separate scroll box inside the table). |
 | Print columns | Always `Tote Gid` … first `Reserve Locn`, landscape, 10pt, header repeated on every page. |
-| Print pages | Splits the printable Troubles into pages for multiple pickers; the split is even by default and each divider can be dragged. Barcodes stay on a single page at the end. |
+| Print pages | Splits the printable Troubles into pages for multiple pickers; the split is even by default and each page start can be dragged with the handle on the left of the table (or moved with the arrow keys). Barcodes stay on a single page at the end. |
 
 If any of these should behave differently, it is a small change - see below.
 
@@ -188,6 +232,9 @@ workbook writing live in **`src/app.js`**.
   `makeBarcodeSvg()` functions. Change `format: 'CODE128'` to `'CODE39'`, etc.
 - **Default web columns:** `visibleColumnIndices()` in `src/app.js`.
 - **Printed columns:** the `PRINT_COLUMNS` array in `src/app.js`.
+- **Alt form font size / layout:** `ALT_FORM_PRINT_CSS` in `src/app.js` (print)
+  and the `.modal` / `.alt-field` rules in `src/styles.css` (popup). Both use
+  18px at the moment.
 - **Sheet names:** `buildWorkbook()` in `src/app.js`.
 
 After editing, run `python3 build.py` to regenerate the single-file version.

@@ -192,18 +192,40 @@
       return row.slice(0, toteIdx + 1).concat([label]).concat(row.slice(toteIdx + 1));
     });
 
-    // 4. Mark duplicate rows (entire original row identical). First is kept
-    //    un-marked; every later repetition is marked.
+    // 4. Mark duplicate rows. Two rows are the same item/order when oLPN,
+    //    Tote Gid, Item, Need and the active location all match; the other
+    //    columns (e.g. "Time in OC") may differ without making it a new row.
+    //    First is kept un-marked; every later repetition is marked.
+    var trimText = function (v) { return String(v == null ? '' : v).trim(); };
+    var dupCols = {
+      oLPN: outCols.oLPN,
+      toteGid: outCols.toteGid,
+      item: outCols.item,
+      need: outCols.need,
+      activeLocn: outCols.activeLocn
+    };
+    var dupPart = function (row, idx, normalize) {
+      if (idx === undefined) return '';
+      var v = row[idx];
+      return normalize ? normalizeLocation(v) : trimText(v);
+    };
     var seen = {};
     var duplicates = outRows.map(function (row) {
-      var key = JSON.stringify(row.slice(0, toteIdx + 1).concat(row.slice(toteIdx + 2)));
+      var key = JSON.stringify([
+        dupPart(row, dupCols.oLPN),
+        dupPart(row, dupCols.toteGid),
+        dupPart(row, dupCols.item),
+        dupPart(row, dupCols.need),
+        dupPart(row, dupCols.activeLocn, true)
+      ]);
       if (seen[key]) return true;
       seen[key] = true;
       return false;
     });
 
     // 5. Classify each row:
-    //    - duplicate: a later exact copy of an earlier row
+    //    - duplicate: a later copy of an earlier row with the same
+    //                 oLPN/tote/item/need/active location
     //    - normal:    has an active location (the printable troubles)
     //    - alt:       no active location, but a reserve location exists
     //                 (send an alt form so EO can grab it)
@@ -216,7 +238,6 @@
     var srcActive = srcCols.activeLocn;
     var srcReserve = srcCols.reserveLocn;
     var srcOlpn = srcCols.oLPN;
-    var trimText = function (v) { return String(v == null ? '' : v).trim(); };
 
     // Which orders (oLPN) have at least one findable item, across the WHOLE
     // file (not just the selected locations), so we never cancel prematurely.

@@ -16,6 +16,9 @@
     showAllColumns: false,
     printPages: 1,         // how many pages the trouble list is split into
     printBoundaries: [],   // cumulative row counts where each page ends
+    // Alt-form (EO pickup) extras. `entries` is keyed by a stable per-row key
+    // so the typed values survive re-renders and re-prints until "Start over".
+    altForm: { name: '', entries: {} },
     result: null
   };
 
@@ -174,7 +177,11 @@
       return result.header.map(function (_, i) { return i; });
     }
     var idx = [];
-    for (var i = start; i <= end; i++) idx.push(i);
+    for (var i = start; i <= end; i++) {
+      // OC Mod and Reserve Locn 2 are only shown with "Show all columns".
+      if (i === result.columns.ocMod || i === result.columns.reserveLocn2) continue;
+      idx.push(i);
+    }
     return idx;
   }
 
@@ -199,6 +206,7 @@
       var r = rowIdxs[n];
       var row = result.rows[r];
       var tr = document.createElement('tr');
+      tr.dataset.rowPos = String(n);
       if (result.duplicates[r]) tr.className = 'dup';
       indices.forEach(function (ci) {
         var td = document.createElement('td');
@@ -215,6 +223,8 @@
       if (breaksAfter && breaksAfter[n] && n < rowIdxs.length - 1) {
         var brk = document.createElement('tr');
         brk.className = 'page-break-row';
+        brk.dataset.boundary = String(breaksAfter[n] - 2);
+        brk.dataset.nextPage = String(breaksAfter[n]);
         var btd = document.createElement('td');
         btd.colSpan = indices.length;
         btd.textContent = 'Page ' + breaksAfter[n] + ' starts here';
@@ -227,6 +237,7 @@
 
   function buildSection(def, result, cols) {
     var wrap = document.createElement('div');
+    if (def.controls) wrap.appendChild(def.controls);
     var h = document.createElement('h3');
     h.className = 'subhead' + (def.accent ? ' subhead-warn' : '');
     h.appendChild(document.createTextNode(def.title + ' '));
@@ -315,11 +326,55 @@
     return map;
   }
 
-  function dividerNote(text) {
-    var s = document.createElement('span');
-    s.className = 'divider-note';
-    s.textContent = text;
-    return s;
+  // ---- Draggable page-break handles ---------------------------------------
+  //
+  // A handle sits in the left rail at each "Page X starts here" line. Drag it
+  // up or down (or use the up/down arrow keys) to move where that page starts.
+
+  var pendingHandleFocus = null;
+
+  function layoutPageHandles(result) {
+    var rail = $('pageHandleRail');
+    if (!rail) return;
+    rail.innerHTML = '';
+    var table = $('previewTable');
+    var wrap = rail.parentNode;
+    if (!table || !wrap) return;
+
+    var breakRows = table.querySelectorAll('tbody tr.page-break-row');
+    wrap.classList.toggle('has-handles', breakRows.length > 0);
+    if (!breakRows.length) return;
+
+    var wrapTop = wrap.getBoundingClientRect().top;
+    Array.prototype.forEach.call(breakRows, function (brk) {
+      var boundary = Number(brk.dataset.boundary);
+      var nextPage = Number(brk.dataset.nextPage);
+      var rect = brk.getBoundingClientRect();
+
+      var handle = document.createElement('button');
+      handle.type = 'button';
+      handle.className = 'page-handle';
+      handle.dataset.boundary = String(boundary);
+      handle.title = 'Drag up or down to move where page ' + nextPage + ' starts';
+      handle.setAttribute('aria-label',
+        'Start of page ' + nextPage + '. Drag, or press the up and down arrow keys to move it.');
+      var grip = document.createElement('span');
+      grip.className = 'page-handle-grip';
+      grip.setAttribute('aria-hidden', 'true');
+      handle.appendChild(grip);
+      handle.style.top = (rect.top - wrapTop + rect.height / 2) + 'px';
+
+      handle.addEventListener('pointerdown', function (e) { startBoundaryDrag(e, boundary); });
+      handle.addEventListener('keydown', function (e) { onBoundaryKey(e, boundary); });
+      rail.appendChild(handle);
+    });
+
+    if (pendingHandleFocus !== null) {
+      var b = pendingHandleFocus;
+      pendingHandleFocus = null;
+      var el = rail.querySelector('.page-handle[data-boundary="' + b + '"]');
+      if (el) el.focus({ preventScroll: true });
+    }
   }
 
   function renderMainTableOnly(result) {
@@ -330,6 +385,7 @@
     renderTable($('previewTable'), cols, normalRows, result, breaks);
     $('troublesCount').textContent = '(' + normalRows.length + ')';
     $('previewNote').textContent = '';
+    layoutPageHandles(result);
   }
 
   var mainTablePending = false;
@@ -342,33 +398,70 @@
     });
   }
 
-  function updateDividerControls(ranges, total, pages) {
-    var rows = $('dividerControls').querySelectorAll('.divider-row');
-    for (var i = 0; i < rows.length && i < ranges.length; i++) {
-      var range = ranges[i];
-      var slider = rows[i].querySelector('input[type="range"]');
-      if (slider) {
-        slider.min = String(range[0] + 1);
-        slider.max = String(total - (pages - 1 - i));
-        slider.value = String(range[1]);
-      }
-      var info = rows[i].querySelector('.divider-range');
-      if (info) info.textContent = 'rows ' + (range[0] + 1) + '\u2013' + range[1];
-    }
+  // Set page-break `b` (0-based) to the given raw row count, clamp/cascade it
+  // through chunkRanges, then re-render the table and handles.
+  function applyBoundary(b, raw) {
+    if (!state.result) return;
+    var total = state.result.groups.normal.length;
+    var pages = effectivePages(total, state.printPages);
+    state.printBoundaries = state.printBoundaries.slice();
+    state.printBoundaries[b] = raw;
+    var ranges = chunkRanges(total, pages, state.printBoundaries);
+    state.printBoundaries = ranges.slice(0, -1).map(function (r) { return r[1]; });
+    scheduleMainTable();
   }
 
-  function onBoundaryInput(e) {
-    if (!state.result) return;
-    var idx = Number(e.target.dataset.boundary);
-    state.printBoundaries = state.printBoundaries.slice();
-    state.printBoundaries[idx] = Number(e.target.value);
+  // The row position the boundary should snap to for a given pointer Y: the
+  // top half of a row keeps the break above it, the bottom half moves it below.
+  function rowPosAtClientY(clientY) {
+    var rows = $('previewTable').querySelectorAll('tbody tr[data-row-pos]');
+    if (!rows.length) return null;
+    for (var i = 0; i < rows.length; i++) {
+      var rect = rows[i].getBoundingClientRect();
+      if (clientY < rect.top + rect.height / 2) {
+        return Number(rows[i].dataset.rowPos);
+      }
+    }
+    return Number(rows[rows.length - 1].dataset.rowPos) + 1;
+  }
 
+  var dragBoundary = null;
+
+  function onBoundaryDragMove(e) {
+    if (dragBoundary === null) return;
+    e.preventDefault();
+    var pos = rowPosAtClientY(e.clientY);
+    if (pos !== null) applyBoundary(dragBoundary, pos);
+  }
+
+  function endBoundaryDrag() {
+    dragBoundary = null;
+    document.body.classList.remove('dragging-handle');
+    window.removeEventListener('pointermove', onBoundaryDragMove);
+    window.removeEventListener('pointerup', endBoundaryDrag);
+    window.removeEventListener('pointercancel', endBoundaryDrag);
+  }
+
+  function startBoundaryDrag(e, boundary) {
+    if (!state.result || e.button !== 0) return;
+    e.preventDefault();
+    dragBoundary = boundary;
+    document.body.classList.add('dragging-handle');
+    window.addEventListener('pointermove', onBoundaryDragMove);
+    window.addEventListener('pointerup', endBoundaryDrag);
+    window.addEventListener('pointercancel', endBoundaryDrag);
+  }
+
+  function onBoundaryKey(e, boundary) {
+    if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+    e.preventDefault();
+    if (!state.result) return;
     var total = state.result.groups.normal.length;
     var pages = effectivePages(total, state.printPages);
     var ranges = chunkRanges(total, pages, state.printBoundaries);
-    state.printBoundaries = ranges.slice(0, -1).map(function (r) { return r[1]; });
-    updateDividerControls(ranges, total, pages);
-    scheduleMainTable();
+    var cur = ranges[boundary][1];
+    pendingHandleFocus = boundary;
+    applyBoundary(boundary, e.key === 'ArrowUp' ? cur - 1 : cur + 1);
   }
 
   function renderPrintLayout(result) {
@@ -385,48 +478,17 @@
     $('pageMinus').disabled = pages <= 1;
     $('pagePlus').disabled = pages >= effectivePages(total, MAX_PRINT_PAGES);
 
-    var host = $('dividerControls');
-    host.innerHTML = '';
-    if (total === 0) {
-      host.appendChild(dividerNote('No printable troubles.'));
-      return;
-    }
-    if (pages === 1) {
-      host.appendChild(dividerNote(
-        'Printing as a single list. A long list spills onto more pages at the same font size.'));
-      return;
-    }
-
-    ranges.forEach(function (range, idx) {
-      var row = document.createElement('div');
-      row.className = 'divider-row';
-
-      var label = document.createElement('span');
-      label.className = 'divider-page';
-      label.textContent = 'Page ' + (idx + 1);
-      row.appendChild(label);
-
-      var mid = document.createElement('span');
-      if (idx < pages - 1) {
-        var slider = document.createElement('input');
-        slider.type = 'range';
-        slider.min = String(range[0] + 1);
-        slider.max = String(total - (pages - 1 - idx));
-        slider.value = String(range[1]);
-        slider.dataset.boundary = String(idx);
-        slider.setAttribute('aria-label', 'Last row on page ' + (idx + 1));
-        slider.addEventListener('input', onBoundaryInput);
-        mid.appendChild(slider);
+    var hint = $('printLayoutHint');
+    if (hint) {
+      if (total === 0) {
+        hint.textContent = 'No printable troubles.';
+      } else if (pages === 1) {
+        hint.textContent = 'Printing as a single list. Use + to split it across pages, then ' +
+          'drag the handles beside the table to set where each page starts.';
+      } else {
+        hint.textContent = 'Drag the handles beside the troubles table to set where each page starts.';
       }
-      row.appendChild(mid);
-
-      var info = document.createElement('span');
-      info.className = 'divider-range';
-      info.textContent = 'rows ' + (range[0] + 1) + '\u2013' + range[1];
-      row.appendChild(info);
-      host.appendChild(row);
-    });
-    host.appendChild(dividerNote('Each divider is where the next page begins.'));
+    }
   }
 
   function setPrintPages(pages) {
@@ -454,7 +516,8 @@
     host.innerHTML = '';
     host.appendChild(buildSection({
       title: 'Alt form \u2014 EO pickup',
-      note: 'No active location, but a reserve location exists. Send an alt form so an EO can grab it. Not printed.',
+      note: 'No active location, but a reserve location exists. Send an alt form so an EO can grab it. Use the buttons above to fill in the location and case for each item, then print.',
+      controls: buildAltFormControls(),
       rows: result.groups.alt
     }, result, cols));
     host.appendChild(buildSection({
@@ -476,6 +539,7 @@
 
     $('columnsBtn').textContent = state.showAllColumns ? 'Show fewer columns' : 'Show all columns';
     renderPrintLayout(result);
+    updateAltFormButtons();
   }
 
   function renderResults(result) {
@@ -501,6 +565,372 @@
     $('resultsCard').classList.remove('hidden');
   }
 
+  // ----------------------------------------------------- Alt form (EO pickup)
+  //
+  // The alt-form section lists items that have no active location but do have
+  // a reserve location. The operator fills in a name plus a Location and Case
+  // for each item (the fields that are not on the OC Clearing export) in a
+  // dialog, then prints a simple form. The typed values are remembered until
+  // "Start over" so the same form can be printed at several locations.
+
+  var ALT_ROW_SEP = '\u241f';   // record separator; cannot appear in a cell
+
+  function cellText(v) { return String(v == null ? '' : v).trim(); }
+
+  // Last N characters of a value, ignoring spaces. "Last 4 digits" of an oLPN.
+  function lastChars(value, n) {
+    var v = String(value == null ? '' : value).replace(/\s+/g, '');
+    return v.length <= n ? v : v.slice(-n);
+  }
+
+  function altFormState() {
+    if (!state.altForm) state.altForm = { name: '', entries: {} };
+    return state.altForm;
+  }
+
+  // A stable identity for an alt row, so saved values reattach after a render.
+  function altRowKey(result, rowIndex) {
+    var c = result.columns;
+    var row = result.rows[rowIndex] || [];
+    return [
+      cellText(row[c.oLPN]),
+      cellText(row[c.item]),
+      cellText(row[c.toteGid]),
+      cellText(row[c.need])
+    ].join(ALT_ROW_SEP);
+  }
+
+  function altEntry(result, rowIndex) {
+    var data = altFormState();
+    var key = altRowKey(result, rowIndex);
+    if (!data.entries[key]) data.entries[key] = { location: '', caseNum: '' };
+    return data.entries[key];
+  }
+
+  // Every alt row needs a location and a case, and the form needs a name.
+  function altFormComplete(result) {
+    if (!result || !result.groups.alt.length) return false;
+    var data = altFormState();
+    if (!cellText(data.name)) return false;
+    for (var i = 0; i < result.groups.alt.length; i++) {
+      var e = data.entries[altRowKey(result, result.groups.alt[i])];
+      if (!e || !cellText(e.location) || !cellText(e.caseNum)) return false;
+    }
+    return true;
+  }
+
+  function buildAltFormControls() {
+    var wrap = document.createElement('div');
+    wrap.className = 'alt-form-controls';
+
+    var fillBtn = document.createElement('button');
+    fillBtn.type = 'button';
+    fillBtn.id = 'altFormFillBtn';
+    fillBtn.className = 'primary';
+    fillBtn.textContent = '\u270E Fill in alt form info';
+    fillBtn.addEventListener('click', openAltFormDialog);
+
+    var printBtn = document.createElement('button');
+    printBtn.type = 'button';
+    printBtn.id = 'altFormPrintBtn';
+    printBtn.textContent = '\uD83D\uDDA8 Print alt form';
+    printBtn.addEventListener('click', printAltForm);
+
+    var note = document.createElement('span');
+    note.className = 'hint alt-form-status';
+    note.id = 'altFormStatus';
+
+    wrap.appendChild(fillBtn);
+    wrap.appendChild(printBtn);
+    wrap.appendChild(note);
+    return wrap;
+  }
+
+  function updateAltFormButtons() {
+    var fill = $('altFormFillBtn');
+    var print = $('altFormPrintBtn');
+    var note = $('altFormStatus');
+    if (!fill || !print) return;
+
+    var result = state.result;
+    var has = !!(result && result.groups.alt.length);
+    var complete = has && altFormComplete(result);
+
+    // Both buttons are dead when there is nothing to fill in.
+    fill.disabled = !has;
+    // Print stays dead until everything required has been saved.
+    print.disabled = !complete;
+
+    if (!note) return;
+    if (!has) note.textContent = '';
+    else if (complete) note.textContent = 'Ready to print.';
+    else note.textContent = 'Fill in the information before printing.';
+  }
+
+  function closeAltFormDialog() {
+    var overlay = $('altFormOverlay');
+    if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay);
+    document.body.classList.remove('modal-open');
+    document.removeEventListener('keydown', onAltDialogKey);
+  }
+
+  function onAltDialogKey(e) {
+    if (e.key === 'Escape') closeAltFormDialog();
+  }
+
+  function openAltFormDialog() {
+    var result = state.result;
+    if (!result || !result.groups.alt.length) return;
+
+    closeAltFormDialog();
+    var data = altFormState();
+    var c = result.columns;
+
+    var overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.id = 'altFormOverlay';
+
+    var modal = document.createElement('div');
+    modal.className = 'modal alt-form-modal';
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute('aria-labelledby', 'altFormDialogTitle');
+
+    var head = document.createElement('div');
+    head.className = 'modal-head';
+    var title = document.createElement('h3');
+    title.id = 'altFormDialogTitle';
+    title.textContent = 'Alt form \u2014 extra information';
+    var closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.className = 'modal-close';
+    closeBtn.setAttribute('aria-label', 'Close');
+    closeBtn.textContent = '\u2715';
+    closeBtn.addEventListener('click', closeAltFormDialog);
+    head.appendChild(title);
+    head.appendChild(closeBtn);
+
+    var hint = document.createElement('p');
+    hint.className = 'hint';
+    hint.textContent = 'Enter your name, then the location and case for each item. ' +
+      'The greyed-out fields come from the spreadsheet and cannot be changed.';
+
+    var body = document.createElement('div');
+    body.className = 'modal-body';
+
+    var nameField = document.createElement('label');
+    nameField.className = 'alt-field alt-name-field';
+    nameField.appendChild(document.createTextNode('Name'));
+    var nameInput = document.createElement('input');
+    nameInput.type = 'text';
+    nameInput.id = 'altFormName';
+    nameInput.value = data.name || '';
+    nameInput.autocomplete = 'name';
+    nameInput.placeholder = 'Your name';
+    nameField.appendChild(nameInput);
+    body.appendChild(nameField);
+
+    var list = document.createElement('div');
+    list.className = 'alt-items';
+
+    result.groups.alt.forEach(function (rowIndex, i) {
+      var entry = altEntry(result, rowIndex);
+      var row = result.rows[rowIndex];
+
+      var item = document.createElement('div');
+      item.className = 'alt-item';
+
+      var num = document.createElement('div');
+      num.className = 'alt-item-num';
+      num.textContent = (i + 1) + '.';
+
+      var fields = document.createElement('div');
+      fields.className = 'alt-item-fields';
+
+      function addField(labelText, value, opts) {
+        opts = opts || {};
+        var field = document.createElement('label');
+        field.className = 'alt-field' + (opts.auto ? ' auto' : '');
+        field.appendChild(document.createTextNode(labelText));
+        var input = document.createElement('input');
+        input.type = 'text';
+        input.value = value;
+        if (opts.auto) {
+          input.readOnly = true;
+          input.tabIndex = -1;
+          input.setAttribute('aria-readonly', 'true');
+        }
+        if (opts.field) {
+          input.dataset.field = opts.field;
+          input.dataset.rowIndex = String(rowIndex);
+        }
+        field.appendChild(input);
+        fields.appendChild(field);
+        return input;
+      }
+
+      // Required order: SKU, Location, Case, Qty, oLPN.
+      addField('SKU', cellText(row[c.item]), { auto: true });
+      addField('Location', entry.location || '', { field: 'location' });
+      addField('Case', entry.caseNum || '', { field: 'case' });
+      addField('Qty', cellText(row[c.need]), { auto: true });
+      addField('oLPN', lastChars(cellText(row[c.oLPN]), 4), { auto: true });
+
+      item.appendChild(num);
+      item.appendChild(fields);
+      list.appendChild(item);
+    });
+
+    body.appendChild(list);
+
+    var foot = document.createElement('div');
+    foot.className = 'modal-foot';
+    var error = document.createElement('span');
+    error.className = 'status';
+    error.id = 'altFormError';
+    var cancelBtn = document.createElement('button');
+    cancelBtn.type = 'button';
+    cancelBtn.textContent = 'Cancel';
+    cancelBtn.addEventListener('click', closeAltFormDialog);
+    var saveBtn = document.createElement('button');
+    saveBtn.type = 'button';
+    saveBtn.className = 'primary';
+    saveBtn.textContent = 'Save';
+    saveBtn.addEventListener('click', saveAltFormDialog);
+    foot.appendChild(error);
+    foot.appendChild(cancelBtn);
+    foot.appendChild(saveBtn);
+
+    modal.appendChild(head);
+    modal.appendChild(hint);
+    modal.appendChild(body);
+    modal.appendChild(foot);
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+    document.body.classList.add('modal-open');
+
+    overlay.addEventListener('click', function (e) {
+      if (e.target === overlay) closeAltFormDialog();
+    });
+    document.addEventListener('keydown', onAltDialogKey);
+
+    nameInput.focus();
+  }
+
+  function joinWordList(items) {
+    if (items.length <= 1) return items[0] || '';
+    return items.slice(0, -1).join(', ') + ' and ' + items[items.length - 1];
+  }
+
+  function saveAltFormDialog() {
+    var result = state.result;
+    if (!result) return;
+
+    var nameInput = $('altFormName');
+    var name = nameInput ? nameInput.value.trim() : '';
+
+    var byRow = {};
+    Array.prototype.forEach.call(
+      document.querySelectorAll('#altFormOverlay [data-field]'),
+      function (input) {
+        var ri = input.dataset.rowIndex;
+        if (!byRow[ri]) byRow[ri] = {};
+        byRow[ri][input.dataset.field] = input.value.trim();
+      }
+    );
+
+    // Work out everything first and only touch the saved state once the whole
+    // form is valid, so a failed save never half-clears it.
+    var missing = [];
+    if (!name) missing.push('your name');
+    var pending = result.groups.alt.map(function (rowIndex, i) {
+      var got = byRow[String(rowIndex)] || {};
+      var location = got.location || '';
+      var caseNum = got.case || '';
+      if (!location) missing.push('location for item ' + (i + 1));
+      if (!caseNum) missing.push('case for item ' + (i + 1));
+      return { rowIndex: rowIndex, location: location, caseNum: caseNum };
+    });
+
+    if (missing.length) {
+      var error = $('altFormError');
+      if (error) {
+        error.textContent = 'Please fill in ' + joinWordList(missing) + '.';
+        error.className = 'status error';
+      }
+      return;
+    }
+
+    var data = altFormState();
+    data.name = name;
+    pending.forEach(function (p) {
+      var key = altRowKey(result, p.rowIndex);
+      data.entries[key] = { location: p.location, caseNum: p.caseNum };
+    });
+
+    closeAltFormDialog();
+    updateAltFormButtons();
+  }
+
+  function buildAltFormPrintHtml(result) {
+    var data = altFormState();
+    var c = result.columns;
+
+    var rows = result.groups.alt.map(function (rowIndex, i) {
+      var entry = data.entries[altRowKey(result, rowIndex)] || {};
+      var row = result.rows[rowIndex];
+      return '<tr>' +
+        '<td class="num">' + (i + 1) + '.</td>' +
+        '<td>' + escapeHtml(cellText(row[c.item])) + '</td>' +
+        '<td>' + escapeHtml(cellText(entry.location)) + '</td>' +
+        '<td>' + escapeHtml(cellText(entry.caseNum)) + '</td>' +
+        '<td>' + escapeHtml(cellText(row[c.need])) + '</td>' +
+        '<td>' + escapeHtml(lastChars(cellText(row[c.oLPN]), 4)) + '</td>' +
+        '</tr>';
+    }).join('');
+
+    var title = 'Alt Form';
+    var locations = (state.selectedLocations || []).join(', ');
+    var head = title + (locations ? ' \u2014 ' + locations : '');
+
+    return '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' +
+      escapeHtml(head) + '</title><style>' + ALT_FORM_PRINT_CSS + '</style></head><body>' +
+      '<h1>' + escapeHtml(head) + '</h1>' +
+      '<div class="alt-name">Name: ' + escapeHtml(cellText(data.name)) + '</div>' +
+      '<table class="alt"><thead><tr>' +
+      '<th class="num">#</th><th>SKU</th><th>Location</th><th>Case</th>' +
+      '<th>Qty</th><th>oLPN</th></tr></thead><tbody>' + rows + '</tbody></table>' +
+      '<p class="alt-thanks">Thank you!</p>' +
+      '</body></html>';
+  }
+
+  var ALT_FORM_PRINT_CSS = [
+    '@page { size: portrait; margin: 12mm; }',
+    '* { box-sizing: border-box; }',
+    'body { margin: 0; color: #000; font-family: Arial, Helvetica, sans-serif; font-size: 18px; }',
+    'h1 { font-size: 22px; margin: 0 0 6px; }',
+    '.alt-name { font-size: 18px; font-weight: 700; margin: 0 0 14px; padding-bottom: 6px; border-bottom: 2px solid #000; }',
+    'table.alt { border-collapse: collapse; width: 100%; }',
+    'table.alt th, table.alt td { border: 1px solid #555; padding: 10px 8px; text-align: left; font-size: 18px; }',
+    'table.alt th { background: #ececec; }',
+    'table.alt td.num { text-align: right; white-space: nowrap; width: 1%; }',
+    'table.alt tr { page-break-inside: avoid; }',
+    '.alt-thanks { margin-top: 18px; font-size: 16px; }'
+  ].join('\n');
+
+  function printAltForm() {
+    if (!state.result || !altFormComplete(state.result)) return;
+    var html;
+    try {
+      html = buildAltFormPrintHtml(state.result);
+    } catch (err) {
+      console.error(err);
+      setStatus('Could not build the alt form: ' + (err && err.message ? err.message : err), 'error');
+      return;
+    }
+    printHtmlDocument(html);
+  }
+
   // ------------------------------------------------------- Barcode preview
 
   var SVG_NS = 'http://www.w3.org/2000/svg';
@@ -511,7 +941,7 @@
       format: 'CODE128',
       width: 2,
       height: 60,
-      margin: 0,
+      margin: 10,            // white quiet zone so scanners ignore the page background
       displayValue: false,
       background: '#ffffff',
       lineColor: '#000000'
@@ -581,6 +1011,7 @@
     '.sheet-section.page-break { page-break-before: always; }',
     '.sheet-sub { font-size: 9pt; color: #444444; margin: 0 0 4px; }',
     '.labels-section { page-break-before: always; }',
+    '.labels-section.first { page-break-before: auto; }',
     '.label { display: inline-block; width: 60mm; padding: 3mm; margin: 0; text-align: center; vertical-align: top; border: 1px dashed #b0b0b0; page-break-inside: avoid; }',
     '.label .num { font-size: 20pt; font-weight: bold; line-height: 1; }',
     '.label svg { display: block; margin: 2mm auto 1mm; max-width: 100%; height: 16mm; }',
@@ -593,7 +1024,11 @@
     });
   }
 
-  function buildPrintHtml(result) {
+  // mode: 'all' (sheet + barcodes), 'sheet', or 'barcodes'.
+  function buildPrintHtml(result, mode) {
+    mode = mode || 'all';
+    var includeSheet = mode !== 'barcodes';
+    var includeLabels = mode !== 'sheet';
     var headerIdx = {};
     result.header.forEach(function (h, i) { headerIdx[h] = i; });
     var cols = PRINT_COLUMNS
@@ -610,7 +1045,7 @@
     var pages = effectivePages(total, state.printPages);
     var ranges = chunkRanges(total, pages, state.printBoundaries);
 
-    var sections = ranges.map(function (range, idx) {
+    var sections = includeSheet ? ranges.map(function (range, idx) {
       var rows = result.groups.normal.slice(range[0], range[1]);
       var tbody = '<tbody>' + rows.map(function (ri) {
         var row = result.rows[ri];
@@ -630,18 +1065,21 @@
       return '<div class="sheet-section' + (idx ? ' page-break' : '') + '">' +
         '<h1>' + head + '</h1>' + sub +
         '<table class="sheet">' + thead + tbody + '</table></div>';
-    }).join('');
+    }).join('') : '';
 
-    var labels = result.barcodes.map(function (b) {
+    var labels = includeLabels ? result.barcodes.map(function (b) {
       var svg = makeBarcodeSvgMarkup(b.tote);
       return '<div class="label"><div class="num">' + escapeHtml(b.label) +
         '</div>' + svg + '<div class="tote">' + escapeHtml(b.tote) + '</div></div>';
-    }).join('');
+    }).join('') : '';
+
+    var labelsSection = includeLabels
+      ? '<div class="labels-section' + (includeSheet ? '' : ' first') + '">' + labels + '</div>'
+      : '';
 
     return '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + head +
       '</title><style>' + PRINT_CSS + '</style></head><body>' +
-      sections +
-      '<div class="labels-section">' + labels + '</div>' +
+      sections + labelsSection +
       '</body></html>';
   }
 
@@ -658,18 +1096,22 @@
     setTimeout(function () { try { w.print(); } catch (e) { /* user can print manually */ } }, 400);
   }
 
-  function printDocument() {
+  function printDocument(mode) {
     if (!state.result) return;
     var html;
     try {
-      html = buildPrintHtml(state.result);
+      html = buildPrintHtml(state.result, mode);
     } catch (err) {
       console.error(err);
       setStatus('Could not build the print view: ' + (err && err.message ? err.message : err), 'error');
       return;
     }
+    printHtmlDocument(html);
+  }
 
-    // Print via a hidden iframe so no pop-up blocker is involved.
+  // Print a finished HTML document through a hidden iframe, so no pop-up
+  // blocker is involved. Shared by the troubles print and the alt form.
+  function printHtmlDocument(html) {
     var frame = document.createElement('iframe');
     frame.setAttribute('aria-hidden', 'true');
     frame.style.position = 'fixed';
@@ -870,6 +1312,8 @@
     state.sourceFileName = '';
     state.printPages = 1;
     state.printBoundaries = [];
+    state.altForm = { name: '', entries: {} };
+    closeAltFormDialog();
     $('resultsCard').classList.add('hidden');
     $('fileInput').value = '';
     setStatus('');
@@ -976,7 +1420,9 @@
     window.addEventListener('dragend', function () { highlightDropzone(false); });
 
     $('downloadBtn').addEventListener('click', downloadEdited);
-    $('printBtn').addEventListener('click', printDocument);
+    $('printBtn').addEventListener('click', function () { printDocument('all'); });
+    $('printSheetBtn').addEventListener('click', function () { printDocument('sheet'); });
+    $('printBarcodesBtn').addEventListener('click', function () { printDocument('barcodes'); });
     $('columnsBtn').addEventListener('click', function () {
       state.showAllColumns = !state.showAllColumns;
       if (state.result) renderTables(state.result);
@@ -985,11 +1431,20 @@
     $('pagePlus').addEventListener('click', function () { setPrintPages(state.printPages + 1); });
     $('pageEvenBtn').addEventListener('click', evenSplit);
     $('resetBtn').addEventListener('click', reset);
+
+    // Keep the page-break handles lined up with their rows on resize.
+    window.addEventListener('resize', function () {
+      if (state.result) layoutPageHandles(state.result);
+    });
   }
 
   // Exposed so the print/preview can be inspected and tested.
   window.PWApp = {
-    buildPrintHtml: function () { return state.result ? buildPrintHtml(state.result) : ''; },
+    buildPrintHtml: function (mode) { return state.result ? buildPrintHtml(state.result, mode) : ''; },
+    buildAltFormPrintHtml: function () {
+      return state.result ? buildAltFormPrintHtml(state.result) : '';
+    },
+    altFormComplete: function () { return altFormComplete(state.result); },
     state: state,
     getThemeMode: getThemeMode,
     applyTheme: applyTheme,
