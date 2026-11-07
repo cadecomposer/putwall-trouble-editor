@@ -907,15 +907,15 @@
   var ALT_FORM_PRINT_CSS = [
     '@page { size: portrait; margin: 12mm; }',
     '* { box-sizing: border-box; }',
-    'body { margin: 0; color: #000; font-family: Arial, Helvetica, sans-serif; font-size: 18px; }',
-    'h1 { font-size: 22px; margin: 0 0 6px; }',
-    '.alt-name { font-size: 18px; font-weight: 700; margin: 0 0 14px; padding-bottom: 6px; border-bottom: 2px solid #000; }',
+    'body { margin: 0; color: #000; font-family: Arial, Helvetica, sans-serif; font-size: 24px; }',
+    'h1 { font-size: 28px; margin: 0 0 6px; }',
+    '.alt-name { font-size: 24px; font-weight: 700; margin: 0 0 14px; padding-bottom: 6px; border-bottom: 2px solid #000; }',
     'table.alt { border-collapse: collapse; width: 100%; }',
-    'table.alt th, table.alt td { border: 1px solid #555; padding: 10px 8px; text-align: left; font-size: 18px; }',
+    'table.alt th, table.alt td { border: 1px solid #555; padding: 10px 8px; text-align: left; font-size: 24px; }',
     'table.alt th { background: #ececec; }',
     'table.alt td.num { text-align: right; white-space: nowrap; width: 1%; }',
     'table.alt tr { page-break-inside: avoid; }',
-    '.alt-thanks { margin-top: 18px; font-size: 16px; }'
+    '.alt-thanks { margin-top: 18px; font-size: 20px; }'
   ].join('\n');
 
   function printAltForm() {

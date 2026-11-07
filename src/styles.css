@@ -471,7 +471,7 @@ body.modal-open { overflow: hidden; }
   border: 1px solid var(--border);
   border-radius: 12px;
   box-shadow: 0 20px 60px rgba(0, 0, 0, .35);
-  font-size: 18px;
+  font-size: 24px;
 }
 .modal-head {
   display: flex;
@@ -507,7 +507,7 @@ body.modal-open { overflow: hidden; }
 .alt-field input {
   width: 100%;
   font: inherit;
-  font-size: 18px;
+  font-size: 24px;
   font-weight: 400;
   color: var(--text);
   background: var(--input-bg);
@@ -531,9 +531,9 @@ body.modal-open { overflow: hidden; }
 }
 .alt-item-num {
   flex: none;
-  min-width: 30px;
-  padding-top: 22px;
-  font-size: 18px;
+  min-width: 34px;
+  padding-top: 24px;
+  font-size: 24px;
   font-weight: 700;
   color: var(--accent-text);
 }

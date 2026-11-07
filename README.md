@@ -124,7 +124,7 @@ The read-only fields are greyed out and cannot be edited. **Save** refuses to
 close the popup until the name and every Location and Case are filled in. The
 saved values are remembered while you print the form (so the same form can be
 printed at several locations) and are only cleared when you click **Start
-over**. The form prints portrait at 18px, one line per item, with the name at
+over**. The form prints portrait at 24px, one line per item, with the name at
 the top and a "Thank you!" at the bottom.
 
 ### Printing
@@ -234,7 +234,7 @@ workbook writing live in **`src/app.js`**.
 - **Printed columns:** the `PRINT_COLUMNS` array in `src/app.js`.
 - **Alt form font size / layout:** `ALT_FORM_PRINT_CSS` in `src/app.js` (print)
   and the `.modal` / `.alt-field` rules in `src/styles.css` (popup). Both use
-  18px at the moment.
+  24px at the moment.
 - **Sheet names:** `buildWorkbook()` in `src/app.js`.
 
 After editing, run `python3 build.py` to regenerate the single-file version.
