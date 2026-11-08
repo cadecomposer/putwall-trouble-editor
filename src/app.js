@@ -88,11 +88,6 @@
   }
 
   function handleFile(file) {
-    var selected = getSelectedLocations();
-    if (!selected.length) {
-      setStatus('Select at least one trouble location in step 1 before adding a file.', 'error');
-      return;
-    }
     if (!/\.(xlsx|xlsm|xls)$/i.test(file.name)) {
       setStatus('That is not an Excel workbook. Please choose a .xlsx file.', 'error');
       return;
@@ -126,10 +121,20 @@
   function reprocess() {
     if (!state.grid) return;
     var selected = getSelectedLocations();
+    state.selectedLocations = selected;
+
+    // No locations ticked yet is a valid state: the file is loaded and waiting
+    // for a filter. Show a neutral prompt instead of hiding everything as an
+    // error. Ticking any location immediately runs the full pipeline again.
     if (!selected.length) {
-      setStatus('Select at least one trouble location in step 1.', 'error');
+      state.result = null;
+      $('resultsCard').classList.add('hidden');
+      setStatus(
+        'Loaded ' + (state.sourceFileName || 'the spreadsheet') +
+        '. Select one or more trouble locations in step 1 to see results.', '');
       return;
     }
+
     try {
       var result = PWProcessor.processData(state.grid, selected);
       if (!result.rows.length) {
@@ -139,7 +144,6 @@
         return;
       }
       state.result = result;
-      state.selectedLocations = selected;
       setStatus('Done \u2014 ' + result.stats.keptRows + ' row(s) kept from ' +
         result.stats.inputRows + ' putwall-related rows.', 'ok');
       renderResults(result);

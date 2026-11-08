@@ -59,6 +59,7 @@ python3 build.py        # writes dist/putwall-trouble-editor.html
 ```bash
 node test/test-processor.js     # runs the logic against a real OC Clearing export
 node test/test-sections.js      # checks normal / alt / split / hold / duplicate handling
+node test/test-filter.js        # checks that changing locations recalculates everything
 ```
 
 The sections test uses a small synthetic file (`test/sample-sections.xlsx`) that
@@ -69,9 +70,12 @@ local (it is a spreadsheet, so it is `.gitignore`d and never published).
 
 ## How to use it
 
-1. Tick the `TRBL-PW-01` … `TRBL-PW-20` locations you are working today.
-   (`Select all 20` and `Clear` are there if you need them.)
-2. Drag the OC Clearing `.xlsx` onto the box, or click to choose the file.
+1. Tick the `TRBL-PW-01` … `TRBL-PW-20` locations you are working today. You
+   can do this before **or after** adding the file. (`Select all 20` and
+   `Clear` are there if you need them.)
+2. Drag the OC Clearing `.xlsx` onto the box, or click to choose the file. The
+   file is always read; if no locations are ticked yet, the page simply waits
+   for you to choose some.
 3. Read the sections:
    - **Troubles** (with barcodes) is the printable list.
    - **Alt form**, **Split cancel**, **Do NOT split cancel yet** and
@@ -85,8 +89,12 @@ local (it is a spreadsheet, so it is `.gitignore`d and never published).
    **Print sheet** / **Print barcodes** if you only need one part. **Download
    .xlsx** saves the full workbook.
 
-Changing the location ticks after a file is loaded re-runs the edit instantly,
-so you can see the effect without re-uploading.
+The locations are a live filter on the imported file. Changing the ticks
+re-runs the whole edit from the original spreadsheet immediately, so the alt
+forms, split cancels/holds, duplicate marking, tote-number labels and barcodes
+are always recalculated for the current selection. Un-ticking every location
+hides the results until at least one is ticked again; it does not discard the
+imported file.
 
 ### Why "Do NOT split cancel yet"?
 
@@ -255,6 +263,8 @@ vendor/JsBarcode.all.min.js JsBarcode - draws the Code 128 barcodes
 build.py                    inlines everything into dist/putwall-trouble-editor.html
 dist/putwall-trouble-editor.html   the self-contained tool (build output)
 test/test-processor.js      runs the core logic against a real report in Node
+test/test-filter.js         proves changing the location filter recalculates
+                            sections, duplicates, labels and barcodes
 HOSTING.md                  options for putting this on the web
 ```
 
