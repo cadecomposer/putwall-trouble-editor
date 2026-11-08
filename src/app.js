@@ -583,6 +583,18 @@
     return v.length <= n ? v : v.slice(-n);
   }
 
+  // Readable local date + time for the top of the printed alt form.
+  function formatTimestamp(date) {
+    try {
+      return date.toLocaleString(undefined, {
+        year: 'numeric', month: 'short', day: 'numeric',
+        hour: 'numeric', minute: '2-digit'
+      });
+    } catch (e) {
+      return date.toString();
+    }
+  }
+
   function altFormState() {
     if (!state.altForm) state.altForm = { name: '', entries: {} };
     return state.altForm;
@@ -892,10 +904,12 @@
     var title = 'Alt Form';
     var locations = (state.selectedLocations || []).join(', ');
     var head = title + (locations ? ' \u2014 ' + locations : '');
+    var stamp = formatTimestamp(new Date());
 
     return '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' +
       escapeHtml(head) + '</title><style>' + ALT_FORM_PRINT_CSS + '</style></head><body>' +
-      '<h1>' + escapeHtml(head) + '</h1>' +
+      '<div class="alt-head"><h1>' + escapeHtml(head) + '</h1>' +
+      '<div class="alt-stamp">Printed: ' + escapeHtml(stamp) + '</div></div>' +
       '<div class="alt-name">Name: ' + escapeHtml(cellText(data.name)) + '</div>' +
       '<table class="alt"><thead><tr>' +
       '<th class="num">#</th><th>SKU</th><th>Location</th><th>Case</th>' +
@@ -908,7 +922,9 @@
     '@page { size: portrait; margin: 12mm; }',
     '* { box-sizing: border-box; }',
     'body { margin: 0; color: #000; font-family: Arial, Helvetica, sans-serif; font-size: 24px; }',
-    'h1 { font-size: 28px; margin: 0 0 6px; }',
+    '.alt-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 0 0 6px; }',
+    'h1 { font-size: 28px; margin: 0; }',
+    '.alt-stamp { font-size: 18px; color: #333; white-space: nowrap; }',
     '.alt-name { font-size: 24px; font-weight: 700; margin: 0 0 14px; padding-bottom: 6px; border-bottom: 2px solid #000; }',
     'table.alt { border-collapse: collapse; width: 100%; }',
     'table.alt th, table.alt td { border: 1px solid #555; padding: 10px 8px; text-align: left; font-size: 24px; }',

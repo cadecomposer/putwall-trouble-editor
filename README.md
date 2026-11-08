@@ -124,8 +124,8 @@ The read-only fields are greyed out and cannot be edited. **Save** refuses to
 close the popup until the name and every Location and Case are filled in. The
 saved values are remembered while you print the form (so the same form can be
 printed at several locations) and are only cleared when you click **Start
-over**. The form prints portrait at 24px, one line per item, with the name at
-the top and a "Thank you!" at the bottom.
+over**. The form prints portrait at 24px, one line per item, with the name and
+a "Printed:" timestamp at the top and a "Thank you!" at the bottom.
 
 ### Printing
 
