@@ -152,6 +152,31 @@ function categoriesFor(res) {
   assert.strictEqual(res.barcodes.length, 0, 'no barcodes');
 }
 
+// --- stable hidden-row ids ----------------------------------------------
+// The browser hides rows by these ids, so they must identify the original
+// source row even though its position in the output list changes.
+{
+  const l02 = run([L02]);
+  const l03 = run([L03]);
+  const both = run([L02, L03]);
+
+  assert.strictEqual(new Set(both.rowIds).size, both.rows.length, 'row ids are unique');
+
+  const bothIds = new Set(both.rowIds);
+  l02.rowIds.forEach(id => assert(bothIds.has(id), 'L02 row id survives adding L03'));
+  l03.rowIds.forEach(id => assert(bothIds.has(id), 'L03 row id survives adding L02'));
+
+  const findT100AtL03 = res => findRow(res, (r, c) =>
+    String(r[c.oLPN]) === 'OLPN-A' &&
+    String(r[c.toteGid]) === 'T100' &&
+    String(r[c.location]) === L03);
+  const i3 = findT100AtL03(l03);
+  const ib = findT100AtL03(both);
+  assert(i3 >= 0 && ib >= 0, 'T100 at L03 is present in both runs');
+  assert.strictEqual(l03.rowIds[i3], both.rowIds[ib],
+    'the same source row keeps the same id across filters');
+}
+
 console.log('All dynamic-filter tests passed.');
 console.log('  L02 only: normal=2 alt=1 split=1 hold=2 duplicate=1');
 console.log('  L03 only: normal=3 alt=0 split=0 hold=0 duplicate=0');

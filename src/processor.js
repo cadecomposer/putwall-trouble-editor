@@ -137,20 +137,28 @@
 
     var header = padRow((rows[headerIndex] || []).map(cellToString), maxRowLength(rows, headerIndex, rows.length));
     var dataRows = rows.slice(headerIndex + 1).map(function (r) { return padRow(r || [], header.length); });
+    // Stable identity for each source row. The browser uses these ids to keep
+    // hidden rows hidden when the location filter re-runs the pipeline.
+    var sourceIds = dataRows.map(function (_, i) { return headerIndex + 1 + i; });
 
     // 1. Filter to the selected trouble locations.
     var wanted = {};
     (selectedLocations || []).forEach(function (loc) {
       wanted[normalizeLocation(loc)] = true;
     });
-    var filtered = dataRows.filter(function (row) {
-      return wanted[normalizeLocation(row[srcCols.location])];
+    var filtered = [];
+    var filteredIds = [];
+    dataRows.forEach(function (row, i) {
+      if (wanted[normalizeLocation(row[srcCols.location])]) {
+        filtered.push(row);
+        filteredIds.push(sourceIds[i]);
+      }
     });
 
     // 2. Sort by the first "Active Locn" column, Z-A. Blank values go last.
     var activeIdx = srcCols.activeLocn;
     var decorated = filtered.map(function (row, i) {
-      return { row: row, i: i, key: String(row[activeIdx] == null ? '' : row[activeIdx]).trim() };
+      return { row: row, id: filteredIds[i], i: i, key: String(row[activeIdx] == null ? '' : row[activeIdx]).trim() };
     });
     decorated.sort(function (a, b) {
       var ak = a.key.toUpperCase();
@@ -163,6 +171,7 @@
       return a.i - b.i;          // stable for ties
     });
     var sorted = decorated.map(function (d) { return d.row; });
+    var sortedIds = decorated.map(function (d) { return d.id; });
 
     // 3. Insert the new "Label" column to the right of Tote Gid.
     var toteIdx = srcCols.toteGid;
@@ -289,6 +298,7 @@
     return {
       header: outHeader,
       rows: outRows,
+      rowIds: sortedIds,
       columns: outCols,
       duplicates: duplicates,
       multiNeed: multiNeed,

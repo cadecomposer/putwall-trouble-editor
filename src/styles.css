@@ -295,6 +295,27 @@ table.preview td {
   border-right: 1px solid var(--row-border-soft);
 }
 table.preview tr.dup td { background: var(--dup-bg); color: var(--dup-text); }
+table.preview tr.row-hidden td { background: var(--input-hover); color: var(--muted); }
+table.preview tr.row-hidden td:not(.row-actions-col) {
+  text-decoration: line-through;
+  text-decoration-thickness: 1.5px;
+  opacity: .65;
+}
+table.preview th.row-actions-col,
+table.preview td.row-actions-col {
+  width: 1%;
+  text-align: center;
+  padding: 4px 8px;
+  background: var(--card-bg);
+}
+table.preview tr.row-hidden td.row-actions-col { background: var(--input-hover); }
+.row-hide-btn {
+  padding: 2px 8px;
+  font-size: 11px;
+  line-height: 1.3;
+  border-radius: 6px;
+}
+table.preview tr.row-hidden .row-hide-btn { text-decoration: none; opacity: 1; }
 table.preview td.label-col, table.preview th.label-col { text-align: center; font-weight: 700; background: var(--label-col-bg); }
 table.preview tr.dup td.label-col { background: var(--dup-bg); }
 table.preview td.needs-multi,
@@ -309,6 +330,7 @@ table.preview tr.dup td.needs-multi {
 .swatch { display: inline-block; width: 14px; height: 14px; border-radius: 3px; vertical-align: -2px; margin-right: 5px; border: 1px solid var(--border); }
 .swatch.dup { background: var(--dup-bg); }
 .swatch.need { background: #ffeb3b; }
+.swatch.hidden-row { background: var(--input-hover); }
 
 .subhead {
   margin: 24px 0 4px;

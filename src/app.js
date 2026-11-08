@@ -19,6 +19,10 @@
     // Alt-form (EO pickup) extras. `entries` is keyed by a stable per-row key
     // so the typed values survive re-renders and re-prints until "Start over".
     altForm: { name: '', entries: {} },
+    // Rows the user has hidden, keyed by the stable source-row id from the
+    // processor. Kept across filter changes and re-imports; cleared only by
+    // "Start over".
+    hiddenRows: {},
     result: null
   };
 
@@ -189,6 +193,23 @@
     return idx;
   }
 
+  function isRowHidden(result, rowIndex) {
+    if (!result || !result.rowIds) return false;
+    return !!state.hiddenRows[result.rowIds[rowIndex]];
+  }
+
+  function toggleRowHidden(result, rowIndex) {
+    if (!result || !result.rowIds) return;
+    var id = result.rowIds[rowIndex];
+    if (state.hiddenRows[id]) delete state.hiddenRows[id];
+    else state.hiddenRows[id] = true;
+
+    // Only re-render: do not re-process. Labels, sections and barcodes keep
+    // exactly the values they already had.
+    renderTables(result);
+    renderBarcodePreview(result);
+  }
+
   function renderTable(tableEl, indices, rowIdxs, result, breaksAfter) {
     var labelCol = result.columns.label;
     var needCol = result.columns.need;
@@ -196,6 +217,10 @@
 
     var thead = document.createElement('thead');
     var htr = document.createElement('tr');
+    var actionTh = document.createElement('th');
+    actionTh.className = 'row-actions-col';
+    actionTh.textContent = 'Hide';
+    htr.appendChild(actionTh);
     indices.forEach(function (ci) {
       var th = document.createElement('th');
       th.textContent = result.header[ci];
@@ -209,9 +234,28 @@
     for (var n = 0; n < rowIdxs.length; n++) {
       var r = rowIdxs[n];
       var row = result.rows[r];
+      var hidden = isRowHidden(result, r);
       var tr = document.createElement('tr');
       tr.dataset.rowPos = String(n);
-      if (result.duplicates[r]) tr.className = 'dup';
+      var rowClasses = [];
+      if (result.duplicates[r]) rowClasses.push('dup');
+      if (hidden) rowClasses.push('row-hidden');
+      if (rowClasses.length) tr.className = rowClasses.join(' ');
+
+      var actionTd = document.createElement('td');
+      actionTd.className = 'row-actions-col';
+      var hideBtn = document.createElement('button');
+      hideBtn.type = 'button';
+      hideBtn.className = 'row-hide-btn';
+      hideBtn.textContent = hidden ? 'Show' : 'Hide';
+      hideBtn.title = hidden ? 'Show this row again' : 'Hide this row (not printed)';
+      hideBtn.setAttribute('aria-pressed', hidden ? 'true' : 'false');
+      (function (rowIndex) {
+        hideBtn.addEventListener('click', function () { toggleRowHidden(result, rowIndex); });
+      })(r);
+      actionTd.appendChild(hideBtn);
+      tr.appendChild(actionTd);
+
       indices.forEach(function (ci) {
         var td = document.createElement('td');
         var val = row[ci];
@@ -230,7 +274,7 @@
         brk.dataset.boundary = String(breaksAfter[n] - 2);
         brk.dataset.nextPage = String(breaksAfter[n]);
         var btd = document.createElement('td');
-        btd.colSpan = indices.length;
+        btd.colSpan = indices.length + 1;
         btd.textContent = 'Page ' + breaksAfter[n] + ' starts here';
         brk.appendChild(btd);
         tbody.appendChild(brk);
@@ -315,19 +359,56 @@
     return ranges;
   }
 
+  function visibleNormalRows(result) {
+    return result.groups.normal.filter(function (r) { return !isRowHidden(result, r); });
+  }
+
+  function printableBarcodes(result) {
+    var toteIdx = result.columns.toteGid;
+    var visibleTotes = {};
+    visibleNormalRows(result).forEach(function (r) {
+      var tote = String(result.rows[r][toteIdx] == null ? '' : result.rows[r][toteIdx]).trim();
+      if (tote !== '') visibleTotes[tote] = true;
+    });
+    return result.barcodes.filter(function (b) { return visibleTotes[b.tote]; });
+  }
+
   function currentRanges(result) {
-    var total = result.groups.normal.length;
+    var total = visibleNormalRows(result).length;
     return chunkRanges(total, state.printPages, state.printBoundaries);
   }
 
-  function breaksAfterMap(ranges) {
-    var map = {};
-    var acc = 0;
+  // Page-break markers are based on printable (not hidden) rows, but the table
+  // still renders hidden rows. Map each printable page start back to the row
+  // position in the full table so the marker/handle sits in the right place.
+  function mainBreaks(result) {
+    var ranges = currentRanges(result);
+    if (ranges.length <= 1) return null;
+    var fullRows = result.groups.normal;
+    var breaks = {};
     for (var i = 0; i < ranges.length - 1; i++) {
-      acc += (ranges[i][1] - ranges[i][0]);
-      map[acc - 1] = i + 2;                    // next page number
+      var nextStart = ranges[i + 1][0];
+      var count = 0;
+      var fullPos = -1;
+      for (var p = 0; p < fullRows.length; p++) {
+        if (isRowHidden(result, fullRows[p])) continue;
+        if (count === nextStart) { fullPos = p; break; }
+        count++;
+      }
+      if (fullPos > 0) breaks[fullPos - 1] = i + 2;
     }
-    return map;
+    return breaks;
+  }
+
+  // Convert a visible table row position into a printable-row count, so that
+  // dragging a page handle ignores the hidden rows it passes over.
+  function printableCountBefore(result, fullPos) {
+    var count = 0;
+    var rows = result.groups.normal;
+    for (var p = 0; p < fullPos && p < rows.length; p++) {
+      if (!isRowHidden(result, rows[p])) count++;
+    }
+    return count;
   }
 
   // ---- Draggable page-break handles ---------------------------------------
@@ -384,8 +465,7 @@
   function renderMainTableOnly(result) {
     var cols = visibleColumnIndices(result);
     var normalRows = result.groups.normal;
-    var ranges = currentRanges(result);
-    var breaks = ranges.length > 1 ? breaksAfterMap(ranges) : null;
+    var breaks = mainBreaks(result);
     renderTable($('previewTable'), cols, normalRows, result, breaks);
     $('troublesCount').textContent = '(' + normalRows.length + ')';
     $('previewNote').textContent = '';
@@ -406,7 +486,7 @@
   // through chunkRanges, then re-render the table and handles.
   function applyBoundary(b, raw) {
     if (!state.result) return;
-    var total = state.result.groups.normal.length;
+    var total = visibleNormalRows(state.result).length;
     var pages = effectivePages(total, state.printPages);
     state.printBoundaries = state.printBoundaries.slice();
     state.printBoundaries[b] = raw;
@@ -435,7 +515,7 @@
     if (dragBoundary === null) return;
     e.preventDefault();
     var pos = rowPosAtClientY(e.clientY);
-    if (pos !== null) applyBoundary(dragBoundary, pos);
+    if (pos !== null) applyBoundary(dragBoundary, printableCountBefore(state.result, pos));
   }
 
   function endBoundaryDrag() {
@@ -460,7 +540,7 @@
     if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
     e.preventDefault();
     if (!state.result) return;
-    var total = state.result.groups.normal.length;
+    var total = visibleNormalRows(state.result).length;
     var pages = effectivePages(total, state.printPages);
     var ranges = chunkRanges(total, pages, state.printBoundaries);
     var cur = ranges[boundary][1];
@@ -469,7 +549,7 @@
   }
 
   function renderPrintLayout(result) {
-    var total = result.groups.normal.length;
+    var total = visibleNormalRows(result).length;
     var pages = effectivePages(total, state.printPages);
     state.printPages = pages;
     if (state.printBoundaries.length !== Math.max(0, pages - 1)) {
@@ -497,7 +577,7 @@
 
   function setPrintPages(pages) {
     if (!state.result) return;
-    var total = state.result.groups.normal.length;
+    var total = visibleNormalRows(state.result).length;
     var p = effectivePages(total, pages);
     state.printPages = p;
     state.printBoundaries = evenBoundaries(total, p);
@@ -506,7 +586,7 @@
 
   function evenSplit() {
     if (!state.result) return;
-    var total = state.result.groups.normal.length;
+    var total = visibleNormalRows(state.result).length;
     state.printBoundaries = evenBoundaries(total, state.printPages);
     renderTables(state.result);
   }
@@ -976,13 +1056,16 @@
   function renderBarcodePreview(result) {
     var grid = $('barcodeGrid');
     grid.innerHTML = '';
-    if (!result.barcodes.length) {
+    var visibleBarcodes = printableBarcodes(result);
+    if (!visibleBarcodes.length) {
       $('bcCount').textContent = '(0)';
-      $('bcNote').textContent = 'No tote numbers were found in the selected rows, so there are no barcodes.';
+      $('bcNote').textContent = result.barcodes.length
+        ? 'All printable rows with barcodes are hidden, so there are no barcodes to print.'
+        : 'No tote numbers were found in the selected rows, so there are no barcodes.';
       return;
     }
-    for (var i = 0; i < result.barcodes.length; i++) {
-      var b = result.barcodes[i];
+    for (var i = 0; i < visibleBarcodes.length; i++) {
+      var b = visibleBarcodes[i];
       var card = document.createElement('div');
       card.className = 'barcode-card';
 
@@ -1002,7 +1085,7 @@
       card.appendChild(tote);
       grid.appendChild(card);
     }
-    $('bcCount').textContent = '(' + result.barcodes.length + ')';
+    $('bcCount').textContent = '(' + visibleBarcodes.length + ')';
     $('bcNote').textContent = '';
   }
 
@@ -1061,12 +1144,13 @@
 
     var head = 'Putwall Troubles \u2014 ' + escapeHtml((state.selectedLocations || []).join(', '));
 
-    var total = result.groups.normal.length;
+    var printableRows = visibleNormalRows(result);
+    var total = printableRows.length;
     var pages = effectivePages(total, state.printPages);
     var ranges = chunkRanges(total, pages, state.printBoundaries);
 
     var sections = includeSheet ? ranges.map(function (range, idx) {
-      var rows = result.groups.normal.slice(range[0], range[1]);
+      var rows = printableRows.slice(range[0], range[1]);
       var tbody = '<tbody>' + rows.map(function (ri) {
         var row = result.rows[ri];
         var tds = cols.map(function (c) {
@@ -1087,7 +1171,7 @@
         '<table class="sheet">' + thead + tbody + '</table></div>';
     }).join('') : '';
 
-    var labels = includeLabels ? result.barcodes.map(function (b) {
+    var labels = includeLabels ? printableBarcodes(result).map(function (b) {
       var svg = makeBarcodeSvgMarkup(b.tote);
       return '<div class="label"><div class="num">' + escapeHtml(b.label) +
         '</div>' + svg + '<div class="tote">' + escapeHtml(b.tote) + '</div></div>';
@@ -1333,6 +1417,7 @@
     state.printPages = 1;
     state.printBoundaries = [];
     state.altForm = { name: '', entries: {} };
+    state.hiddenRows = {};
     closeAltFormDialog();
     $('resultsCard').classList.add('hidden');
     $('fileInput').value = '';
