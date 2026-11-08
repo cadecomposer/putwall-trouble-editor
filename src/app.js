@@ -363,6 +363,10 @@
     return result.groups.normal.filter(function (r) { return !isRowHidden(result, r); });
   }
 
+  function visibleAltRows(result) {
+    return result.groups.alt.filter(function (r) { return !isRowHidden(result, r); });
+  }
+
   function printableBarcodes(result) {
     var toteIdx = result.columns.toteGid;
     var visibleTotes = {};
@@ -705,11 +709,13 @@
 
   // Every alt row needs a location and a case, and the form needs a name.
   function altFormComplete(result) {
-    if (!result || !result.groups.alt.length) return false;
+    if (!result) return false;
+    var altRows = visibleAltRows(result);
+    if (!altRows.length) return false;
     var data = altFormState();
     if (!cellText(data.name)) return false;
-    for (var i = 0; i < result.groups.alt.length; i++) {
-      var e = data.entries[altRowKey(result, result.groups.alt[i])];
+    for (var i = 0; i < altRows.length; i++) {
+      var e = data.entries[altRowKey(result, altRows[i])];
       if (!e || !cellText(e.location) || !cellText(e.caseNum)) return false;
     }
     return true;
@@ -749,7 +755,8 @@
     if (!fill || !print) return;
 
     var result = state.result;
-    var has = !!(result && result.groups.alt.length);
+    var altRows = result ? visibleAltRows(result) : [];
+    var has = altRows.length > 0;
     var complete = has && altFormComplete(result);
 
     // Both buttons are dead when there is nothing to fill in.
@@ -758,8 +765,11 @@
     print.disabled = !complete;
 
     if (!note) return;
-    if (!has) note.textContent = '';
-    else if (complete) note.textContent = 'Ready to print.';
+    if (!has) {
+      note.textContent = result && result.groups.alt.length
+        ? 'All alt-form rows are hidden.'
+        : '';
+    } else if (complete) note.textContent = 'Ready to print.';
     else note.textContent = 'Fill in the information before printing.';
   }
 
@@ -776,7 +786,8 @@
 
   function openAltFormDialog() {
     var result = state.result;
-    if (!result || !result.groups.alt.length) return;
+    var altRows = result ? visibleAltRows(result) : [];
+    if (!altRows.length) return;
 
     closeAltFormDialog();
     var data = altFormState();
@@ -829,7 +840,7 @@
     var list = document.createElement('div');
     list.className = 'alt-items';
 
-    result.groups.alt.forEach(function (rowIndex, i) {
+    altRows.forEach(function (rowIndex, i) {
       var entry = altEntry(result, rowIndex);
       var row = result.rows[rowIndex];
 
@@ -939,7 +950,7 @@
     // form is valid, so a failed save never half-clears it.
     var missing = [];
     if (!name) missing.push('your name');
-    var pending = result.groups.alt.map(function (rowIndex, i) {
+    var pending = visibleAltRows(result).map(function (rowIndex, i) {
       var got = byRow[String(rowIndex)] || {};
       var location = got.location || '';
       var caseNum = got.case || '';
@@ -972,7 +983,7 @@
     var data = altFormState();
     var c = result.columns;
 
-    var rows = result.groups.alt.map(function (rowIndex, i) {
+    var rows = visibleAltRows(result).map(function (rowIndex, i) {
       var entry = data.entries[altRowKey(result, rowIndex)] || {};
       var row = result.rows[rowIndex];
       return '<tr>' +

@@ -100,10 +100,11 @@ imported file.
 
 Every section has a **Hide** button on each row. A hidden row stays in the
 table, greyed out and crossed through, but it is skipped when the Troubles
-sheet and barcode labels are printed. Hiding does **not** re-process anything:
-tote-number labels and sections stay exactly as they were. Hidden rows stay
-hidden while you change the location filter, and are only cleared by **Start
-over**.
+sheet and barcode labels are printed. Hidden alt-form rows are also left out
+of the fill-in popup and the printed alt form. Hiding does **not** re-process
+anything: tote-number labels and sections stay exactly as they were. Hidden
+rows stay hidden while you change the location filter, and are only cleared by
+**Start over**.
 
 ### Why "Do NOT split cancel yet"?
 
@@ -226,7 +227,7 @@ These are the choices the tool makes. They are all easy to change - see
 | Sections | normal = active; alt = no active but reserve; split = neither; hold = split whose order has a findable item; duplicate = later exact copy. |
 | Order grouping | Rows are grouped by `oLPN` across the whole file for the hold rule. |
 | Duplicates | A row is a duplicate when its `oLPN`, `Tote Gid`, `Item`, `Need` and active location all match an earlier row. Other columns (e.g. `Time in OC`) may differ. The first occurrence keeps its section; later copies go to **Duplicates**. |
-| Hidden rows | Rows can be hidden in any section. They stay visible but grey/struck on the page and are skipped when printing Troubles and barcode labels. Labels and section counts are not recalculated, and the hidden state survives location-filter changes until **Start over**. |
+| Hidden rows | Rows can be hidden in any section. They stay visible but grey/struck on the page and are skipped when printing Troubles, barcode labels and the alt form (hidden alt rows are also left out of the fill-in popup). Labels and section counts are not recalculated, and the hidden state survives location-filter changes until **Start over**. |
 | Barcodes | Code 128, encoding the **tote number**, generated only for the printable **Troubles**. |
 | Column toggle | Web tables default to `oLPN` through `Reserve Locn`, skipping `OC Mod` and `Reserve Locn 2`; the button reveals every column. The `.xlsx` always contains every column. |
 | Preview length | Every row is rendered on the page, so the whole list is visible at once (no separate scroll box inside the table). |
