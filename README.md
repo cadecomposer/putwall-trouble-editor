@@ -142,8 +142,9 @@ The read-only fields are greyed out and cannot be edited. **Save** refuses to
 close the popup until the name and every Location and Case are filled in. The
 saved values are remembered while you print the form (so the same form can be
 printed at several locations) and are only cleared when you click **Start
-over**. The form prints portrait at 24px, one line per item, with the name and
-a "Printed:" timestamp at the top and a "Thank you!" at the bottom.
+over**. The form prints portrait at 24px, one line per item, with columns sized
+to their contents, and with the name and a "Printed:" timestamp at the top and
+a "Thank you!" at the bottom.
 
 ### Printing
 
@@ -158,8 +159,10 @@ The full **Print sheet + barcodes** output is:
 
 - **The troubles table**, 10pt, limited to the columns `Tote Gid` through the
   first `Reserve Locn` (`Tote Gid`, `Label`, `Item`, `Need`, `Active Locn`,
-  `Active Locn 2`, `Active OH`, `Reserve Locn`). `Need` cells above 1 are
-  yellow, and the column header repeats on every printed page.
+  `Active Locn 2`, `Active OH`, `Reserve Locn`). Each column is only as wide as
+  the widest text in it (header included), so the table does not stretch to the
+  page edges. `Need` cells above 1 are yellow, and the column header repeats on
+  every printed page.
 - **The barcode labels**, one block per printable tote with the label number
   above a Code 128 barcode and the tote number below, always as a single page
   at the end.
