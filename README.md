@@ -156,8 +156,8 @@ close the popup until the name and every Location and Case are filled in. The
 saved values are remembered while you print the form (so the same form can be
 printed at several locations) and are only cleared when you click **Start
 over**. The form prints portrait at 24px, one line per item, with columns sized
-to their contents, and with the name and a "Printed:" timestamp at the top and
-a "Thank you!" at the bottom.
+to their contents and the table centered on the page, and with the name and a
+"Printed:" timestamp at the top and a "Thank you!" at the bottom.
 
 ### Printing
 
@@ -174,7 +174,7 @@ The full **Print sheet + barcodes** output is:
   first `Reserve Locn` (`Tote Gid`, `Label`, `Item`, `Need`, `Active Locn`,
   `Active Locn 2`, `Active OH`, `Reserve Locn`). Each column is only as wide as
   the widest text in it (header included), so the table does not stretch to the
-  page edges. `Need` cells above 1 are yellow, and the column header repeats on
+  page edges, and the table is centered horizontally. `Need` cells above 1 are yellow, and the column header repeats on
   every printed page.
 - **The barcode labels**, one block per printable tote with the label number
   above a Code 128 barcode and the tote number below, always as a single page

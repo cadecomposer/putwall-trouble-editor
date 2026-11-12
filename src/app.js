@@ -1088,8 +1088,8 @@
     '.alt-stamp { font-size: 18px; color: #333; white-space: nowrap; }',
     '.alt-name { font-size: 24px; font-weight: 700; margin: 0 0 14px; padding-bottom: 6px; border-bottom: 2px solid #000; }',
     // Width auto keeps each column sized to its contents instead of stretching
-    // the table across the whole page.
-    'table.alt { border-collapse: collapse; width: auto; }',
+    // the table across the whole page. Auto side margins centre the table.
+    'table.alt { border-collapse: collapse; width: auto; margin-left: auto; margin-right: auto; }',
     'table.alt th, table.alt td { border: 1px solid #555; padding: 10px 8px; text-align: left; font-size: 24px; }',
     'table.alt th { background: #ececec; }',
     'table.alt td.num { text-align: right; white-space: nowrap; width: 1%; }',
@@ -1183,8 +1183,8 @@
     'body { margin: 0; color: #000; font-family: Arial, Helvetica, sans-serif; }',
     'h1 { font-size: 12pt; margin: 0 0 6px; }',
     // Width auto keeps each column sized to its contents instead of stretching
-    // the table across the whole page.
-    'table.sheet { border-collapse: collapse; width: auto; font-size: 10pt; }',
+    // the table across the whole page. Auto side margins centre the table.
+    'table.sheet { border-collapse: collapse; width: auto; margin-left: auto; margin-right: auto; font-size: 10pt; }',
     'table.sheet th, table.sheet td { border: 1px solid #7f7f7f; padding: 2px 4px; text-align: left; white-space: nowrap; }',
     'table.sheet th { background: #e6e6e6; }',
     'table.sheet thead { display: table-header-group; }',
