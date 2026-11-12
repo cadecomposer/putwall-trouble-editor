@@ -18,7 +18,8 @@ spreadsheet in a few clicks:
    - **Duplicates** - later copies of an earlier row that share the same
      `oLPN`, `Tote Gid`, `Item`, `Need` and active location.
 5. **Generate scannable Code 128 barcodes** for the printable troubles' totes.
-6. **Highlight the `Need` cell yellow** when it is more than 1.
+6. **Highlight the `Need` cell yellow** when it is more than 1, and the
+   `Active OH` cell orange when it is less than 1 (zero or negative).
 7. **Preview the barcodes** right in the page.
 8. **Download** the edited `.xlsx` (one sheet per section), or **print** the
    troubles table — optionally split across pages for multiple pickers — plus a
@@ -80,6 +81,8 @@ local (it is a spreadsheet, so it is `.gitignore`d and never published).
    - **Troubles** (with barcodes) is the printable list.
    - **Alt form**, **Split cancel**, **Do NOT split cancel yet** and
      **Duplicates** are the special-handling lists. None of them print.
+   - Rows with an `Active OH` below 1 have that cell highlighted orange so a
+     stock problem is easy to spot.
 4. By default the tables show only the useful columns, from `oLPN` through
    `Reserve Locn` (`OC Mod` and `Reserve Locn 2` are hidden). Click **Show all
    columns** to reveal the rest (`Time in OC`, `Order Date`, `Wave`, `OC Mod`,
@@ -105,6 +108,16 @@ of the fill-in popup and the printed alt form. Hiding does **not** re-process
 anything: tote-number labels and sections stay exactly as they were. Hidden
 rows stay hidden while you change the location filter, and are only cleared by
 **Start over**.
+
+### Adding a row to the alt form
+
+Every row that is not already in the **Alt form** section has an **Add to alt
+form** button next to its **Hide** button. Use it when the system says stock
+exists but you cannot find it: the row is added to the Alt form section (and to
+the printed/downloaded alt form) while staying in its original section. Rows
+with an `Active OH` below 1 are highlighted orange to make those cases easy to
+find, but they are **not** added automatically. Click **Remove from alt form**
+on the same row to undo an addition.
 
 ### Why "Do NOT split cancel yet"?
 
@@ -199,7 +212,8 @@ document is always light so it prints cleanly either way.
 The downloaded `.xlsx` has one sheet per section:
 
 - **Troubles** - printable rows (active location present).
-- **Alt Form** - no active location, reserve location present.
+- **Alt Form** - no active location and a reserve location present, plus any
+  rows added by hand from the preview.
 - **Split Cancel** - no active or reserve location, order has nothing findable.
 - **Split Cancel HOLD** - no active/reserve, but the order has a findable item.
 - **Duplicates** - later exact copies of an earlier row (filled light red).
@@ -210,6 +224,7 @@ Every data sheet also has:
 
 - the new `Label` column immediately to the right of `Tote Gid`;
 - `Need` cells greater than 1 filled yellow (fill `FFEB3B`);
+- `Active OH` cells below 1 (zero or negative) filled orange (fill `FFE0B2`);
 - a frozen header row.
 
 ---
@@ -231,6 +246,8 @@ These are the choices the tool makes. They are all easy to change - see
 | Order grouping | Rows are grouped by `oLPN` across the whole file for the hold rule. |
 | Duplicates | A row is a duplicate when its `oLPN`, `Tote Gid`, `Item`, `Need` and active location all match an earlier row. Other columns (e.g. `Time in OC`) may differ. The first occurrence keeps its section; later copies go to **Duplicates**. |
 | Hidden rows | Rows can be hidden in any section. They stay visible but grey/struck on the page and are skipped when printing Troubles, barcode labels and the alt form (hidden alt rows are also left out of the fill-in popup). Labels and section counts are not recalculated, and the hidden state survives location-filter changes until **Start over**. |
+| Manual alt rows | Any row not already in the Alt form can be added with **Add to alt form**. It stays in its original section and also appears in the Alt form section, the alt-form popup, the printed alt form and the downloaded **Alt Form** sheet. Additions survive location-filter changes until **Start over**. |
+| Low Active OH | A numeric `Active OH` below 1 (including 0 and negatives) marks that cell orange. Blank values are unknown and are not marked. This is only a marker; such rows are never moved to the alt form automatically. |
 | Barcodes | Code 128, encoding the **tote number**, generated only for the printable **Troubles**. |
 | Column toggle | Web tables default to `oLPN` through `Reserve Locn`, skipping `OC Mod` and `Reserve Locn 2`; the button reveals every column. The `.xlsx` always contains every column. |
 | Preview length | Every row is rendered on the page, so the whole list is visible at once (no separate scroll box inside the table). |
@@ -249,6 +266,7 @@ workbook writing live in **`src/app.js`**.
 - **Section rules:** `processData()` in `src/processor.js` (the `categories`
   mapping and the `orderHasFindable` map).
 - **Need highlight colour:** search for `FFFFEB3B` / `#ffeb3b`.
+- **Low Active OH highlight colour:** search for `FFFFE0B2` / `#ffe0b2`.
 - **Duplicate colour:** search for `FFFFC7CE` (fill) and `FF9C0006` (font).
 - **Barcode format / size:** `src/app.js`, the `makeBarcode()` /
   `makeBarcodeSvg()` functions. Change `format: 'CODE128'` to `'CODE39'`, etc.

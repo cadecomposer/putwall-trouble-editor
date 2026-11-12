@@ -76,10 +76,25 @@ assert.deepStrictEqual(
   'barcodes are normal totes only'
 );
 
+// Active OH below 1 is marked; blank values are not treated as zero.
+function rowIndexOfTote(tote) {
+  for (let i = 0; i < res.rows.length; i++) {
+    if (String(res.rows[i][c.toteGid]) === tote) return i;
+  }
+  return -1;
+}
+assert.strictEqual(res.lowActiveOH[rowIndexOfTote('T200')], true, 'Active OH 0 is low');
+assert.strictEqual(res.lowActiveOH[rowIndexOfTote('T401')], true, 'Active OH -1 is low');
+assert.strictEqual(res.lowActiveOH[rowIndexOfTote('T400')], true, 'Active OH 0 on a hold row is low');
+assert.strictEqual(res.lowActiveOH[rowIndexOfTote('T300')], false, 'blank Active OH is not low');
+assert.strictEqual(res.lowActiveOH[rowIndexOfTote('T201')], false, 'Active OH 1 is not low');
+assert.strictEqual(res.stats.lowActiveOHRows, 3, 'three low Active OH rows');
+
 console.log('All section tests passed:');
 console.log('  normal=' + res.stats.normalRows +
   ' alt=' + res.stats.altRows +
   ' split=' + res.stats.splitRows +
   ' hold=' + res.stats.holdRows +
-  ' duplicate=' + res.stats.duplicateRows);
+  ' duplicate=' + res.stats.duplicateRows +
+  ' lowActiveOH=' + res.stats.lowActiveOHRows);
 console.log('  barcodes: ' + res.barcodes.map(b => b.label + ':' + b.tote).join(', '));

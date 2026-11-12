@@ -18,6 +18,9 @@
  * ignored by .gitignore (the tool's job is to handle spreadsheets; this sample
  * stays on your machine).
  *
+ * Some rows deliberately use an Active OH of 0, -1 or blank to exercise the
+ * "less than 1" marker without changing any section classification.
+ *
  * Usage:  node test/make-sample-sections.js
  */
 'use strict';
@@ -34,10 +37,12 @@ const HEADER = [
   'Reserve Locn', 'Reserve Locn 2', 'iLPN', 'iLPN2', 'Staging Locn'
 ];
 
-function row(olpn, tote, item, need, active, reserve, timeInOC) {
+function row(olpn, tote, item, need, active, reserve, timeInOC, activeOH) {
   return [
     timeInOC || '<2 Hours', '11/05', 'W1', olpn, '', 'TRBL-PW-02', 'OC',
-    tote, item, String(need), active, active, '1', reserve, '', '', '', ''
+    tote, item, String(need), active, active,
+    activeOH === undefined ? '1' : activeOH,
+    reserve, '', '', '', ''
   ];
 }
 
@@ -47,11 +52,11 @@ function buildAoa() {
     ['EFC3 - 819'],
     HEADER,
     row('OLPN-A', 'T100', '111', 1, 'B100-01-A1', ''),  // normal
-    row('OLPN-B', 'T200', '222', 2, '', 'R200-02-B2'),   // ALT
-    row('OLPN-C', 'T300', '333', 1, '', ''),             // split
-    row('OLPN-D', 'T401', '444', 1, 'E100-05-E5', ''),   // normal (order D findable)
-    row('OLPN-D', 'T400', '555', 1, '', ''),             // HOLD
-    row('OLPN-A', 'T100', '111', 1, 'B100-01-A1', ''),   // duplicate of first normal
+    row('OLPN-B', 'T200', '222', 2, '', 'R200-02-B2', '', '0'),   // ALT, Active OH 0
+    row('OLPN-C', 'T300', '333', 1, '', '', '', ''),              // split, blank Active OH
+    row('OLPN-D', 'T401', '444', 1, 'E100-05-E5', '', '', '-1'),  // normal, Active OH negative
+    row('OLPN-D', 'T400', '555', 1, '', '', '', '0'),             // HOLD, Active OH 0
+    row('OLPN-A', 'T100', '111', 1, 'B100-01-A1', ''),  // duplicate of first normal
     row('OLPN-A', 'T100', '111', 1, 'B100-01-A1', '', '4 Hours'), // duplicate: only Time in OC differs
     row('OLPN-A', 'T100', '111', 1, 'B999-99-Z9', ''),   // NOT a duplicate: active location differs
     row('OLPN-B', 'T201', '777', 1, 'F100-06-F6', '')    // normal

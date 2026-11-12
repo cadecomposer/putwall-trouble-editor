@@ -23,6 +23,10 @@
     // processor. Kept across filter changes and re-imports; cleared only by
     // "Start over".
     hiddenRows: {},
+    // Rows the user manually added to the alt form, keyed by the same stable
+    // source-row id. These are additions on top of the rows the processor
+    // classified as alt; the source row stays in its original section.
+    manualAltRows: {},
     result: null
   };
 
@@ -210,16 +214,48 @@
     renderBarcodePreview(result);
   }
 
+  function isManualAltRow(result, rowIndex) {
+    if (!result || !result.rowIds) return false;
+    return !!state.manualAltRows[result.rowIds[rowIndex]];
+  }
+
+  // Alt-form rows are the ones the processor classified as alt, plus any rows
+  // the user chose to add by hand. Manual additions stay in their original
+  // section too; the alt form is an extra output for that row.
+  function manualAltRowIndices(result) {
+    var out = [];
+    result.rows.forEach(function (_, i) {
+      if (result.categories[i] !== 'alt' && isManualAltRow(result, i)) out.push(i);
+    });
+    return out;
+  }
+
+  function allAltRows(result) {
+    return result.groups.alt.concat(manualAltRowIndices(result));
+  }
+
+  function toggleManualAltRow(result, rowIndex) {
+    if (!result || !result.rowIds) return;
+    var id = result.rowIds[rowIndex];
+    if (state.manualAltRows[id]) delete state.manualAltRows[id];
+    else state.manualAltRows[id] = true;
+
+    renderTables(result);
+    renderStats(result);
+    renderBarcodePreview(result);
+  }
+
   function renderTable(tableEl, indices, rowIdxs, result, breaksAfter) {
     var labelCol = result.columns.label;
     var needCol = result.columns.need;
+    var activeOHCol = result.columns.activeOH;
     tableEl.innerHTML = '';
 
     var thead = document.createElement('thead');
     var htr = document.createElement('tr');
     var actionTh = document.createElement('th');
     actionTh.className = 'row-actions-col';
-    actionTh.textContent = 'Hide';
+    actionTh.textContent = 'Actions';
     htr.appendChild(actionTh);
     indices.forEach(function (ci) {
       var th = document.createElement('th');
@@ -244,6 +280,9 @@
 
       var actionTd = document.createElement('td');
       actionTd.className = 'row-actions-col';
+      var actions = document.createElement('div');
+      actions.className = 'row-actions';
+
       var hideBtn = document.createElement('button');
       hideBtn.type = 'button';
       hideBtn.className = 'row-hide-btn';
@@ -253,7 +292,26 @@
       (function (rowIndex) {
         hideBtn.addEventListener('click', function () { toggleRowHidden(result, rowIndex); });
       })(r);
-      actionTd.appendChild(hideBtn);
+      actions.appendChild(hideBtn);
+
+      // Rows the processor already put on the alt form need no add button.
+      if (result.categories[r] !== 'alt') {
+        var added = isManualAltRow(result, r);
+        var altBtn = document.createElement('button');
+        altBtn.type = 'button';
+        altBtn.className = 'row-hide-btn row-alt-btn' + (added ? ' is-added' : '');
+        altBtn.textContent = added ? 'Remove from alt form' : 'Add to alt form';
+        altBtn.title = added
+          ? 'Remove this row from the alt form'
+          : 'Also put this row on the alt form';
+        altBtn.setAttribute('aria-pressed', added ? 'true' : 'false');
+        (function (rowIndex) {
+          altBtn.addEventListener('click', function () { toggleManualAltRow(result, rowIndex); });
+        })(r);
+        actions.appendChild(altBtn);
+      }
+
+      actionTd.appendChild(actions);
       tr.appendChild(actionTd);
 
       indices.forEach(function (ci) {
@@ -263,6 +321,7 @@
         var classes = [];
         if (ci === labelCol) classes.push('label-col');
         if (ci === needCol && result.multiNeed[r]) classes.push('needs-multi');
+        if (ci === activeOHCol && result.lowActiveOH[r]) classes.push('active-oh-low');
         if (classes.length) td.className = classes.join(' ');
         tr.appendChild(td);
       });
@@ -364,7 +423,7 @@
   }
 
   function visibleAltRows(result) {
-    return result.groups.alt.filter(function (r) { return !isRowHidden(result, r); });
+    return allAltRows(result).filter(function (r) { return !isRowHidden(result, r); });
   }
 
   function printableBarcodes(result) {
@@ -604,9 +663,9 @@
     host.innerHTML = '';
     host.appendChild(buildSection({
       title: 'Alt form \u2014 EO pickup',
-      note: 'No active location, but a reserve location exists. Send an alt form so an EO can grab it. Use the buttons above to fill in the location and case for each item, then print.',
+      note: 'Rows with no active location but a reserve location, plus any rows you add with the "Add to alt form" button. Send an alt form so an EO can grab the item. Use the buttons above to fill in the location and case for each item, then print.',
       controls: buildAltFormControls(),
-      rows: result.groups.alt
+      rows: allAltRows(result)
     }, result, cols));
     host.appendChild(buildSection({
       title: 'Split cancel',
@@ -630,24 +689,29 @@
     updateAltFormButtons();
   }
 
-  function renderResults(result) {
+  function renderStats(result) {
     var s = result.stats;
+    var altCount = allAltRows(result).length;
     $('resultsSummary').textContent =
       'Kept ' + s.keptRows + ' of ' + s.inputRows + ' rows \u2014 ' +
-      s.normalRows + ' trouble(s) to print, ' + s.altRows + ' alt form, ' +
+      s.normalRows + ' trouble(s) to print, ' + altCount + ' alt form, ' +
       s.splitRows + ' split cancel, ' + s.holdRows + ' hold, ' +
       s.duplicateRows + ' duplicate.';
 
     var box = $('statsBox');
     box.innerHTML = '';
     box.appendChild(statCard(String(s.normalRows), 'Troubles (print)'));
-    box.appendChild(statCard(String(s.altRows), 'Alt form (EO)'));
+    box.appendChild(statCard(String(altCount), 'Alt form (EO)'));
     box.appendChild(statCard(String(s.splitRows), 'Split cancel'));
     box.appendChild(statCard(String(s.holdRows), 'Hold (no split)'));
     box.appendChild(statCard(String(s.duplicateRows), 'Duplicates'));
     box.appendChild(statCard(String(s.multiNeedRows), 'Need > 1'));
+    box.appendChild(statCard(String(s.lowActiveOHRows), 'Active OH < 1'));
     box.appendChild(statCard(String(s.distinctTotes), 'Barcodes'));
+  }
 
+  function renderResults(result) {
+    renderStats(result);
     renderTables(result);
     renderBarcodePreview(result);
     $('resultsCard').classList.remove('hidden');
@@ -656,10 +720,12 @@
   // ----------------------------------------------------- Alt form (EO pickup)
   //
   // The alt-form section lists items that have no active location but do have
-  // a reserve location. The operator fills in a name plus a Location and Case
-  // for each item (the fields that are not on the OC Clearing export) in a
-  // dialog, then prints a simple form. The typed values are remembered until
-  // "Start over" so the same form can be printed at several locations.
+  // a reserve location, plus rows the operator adds by hand (for example when
+  // the system says stock exists but it cannot be found). The operator fills
+  // in a name plus a Location and Case for each item (the fields that are not
+  // on the OC Clearing export) in a dialog, then prints a simple form. The
+  // typed values are remembered until "Start over" so the same form can be
+  // printed at several locations.
 
   var ALT_ROW_SEP = '\u241f';   // record separator; cannot appear in a cell
 
@@ -766,7 +832,7 @@
 
     if (!note) return;
     if (!has) {
-      note.textContent = result && result.groups.alt.length
+      note.textContent = result && allAltRows(result).length
         ? 'All alt-form rows are hidden.'
         : '';
     } else if (complete) note.textContent = 'Ready to print.';
@@ -1126,6 +1192,7 @@
     'table.sheet td.lbl { text-align: center; font-weight: bold; }',
     'table.sheet tr.dup td { background: #ffc7ce; }',
     'table.sheet tr td.need-multi { background: #ffeb3b; color: #000; font-weight: bold; }',
+    'table.sheet tr td.oh-low { background: #ffe0b2; color: #000; font-weight: bold; }',
     '.sheet-section.page-break { page-break-before: always; }',
     '.sheet-sub { font-size: 9pt; color: #444444; margin: 0 0 4px; }',
     '.labels-section { page-break-before: always; }',
@@ -1172,6 +1239,7 @@
           var cls = '';
           if (c.name === 'Label') cls = ' class="lbl"';
           else if (c.name === 'Need' && result.multiNeed[ri]) cls = ' class="need-multi"';
+          else if (c.name === 'Active OH' && result.lowActiveOH[ri]) cls = ' class="oh-low"';
           return '<td' + cls + '>' + escapeHtml(row[c.i]) + '</td>';
         }).join('');
         return '<tr>' + tds + '</tr>';
@@ -1325,6 +1393,12 @@
         needCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFEB3B' } };
         needCell.font = { bold: true, color: { argb: 'FF1C2530' } };
       }
+
+      if (result.lowActiveOH[ri] && result.columns.activeOH !== undefined) {
+        var ohCell = row.getCell(result.columns.activeOH + 1);
+        ohCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFE0B2' } };
+        ohCell.font = { bold: true, color: { argb: 'FF6B3B00' } };
+      }
     });
 
     result.header.forEach(function (h, i) {
@@ -1341,7 +1415,7 @@
 
     // ---- one sheet per section ----
     addDataSheet(wb, 'Troubles', result, result.groups.normal, false);
-    addDataSheet(wb, 'Alt Form', result, result.groups.alt, false);
+    addDataSheet(wb, 'Alt Form', result, allAltRows(result), false);
     addDataSheet(wb, 'Split Cancel', result, result.groups.split, false);
     addDataSheet(wb, 'Split Cancel HOLD', result, result.groups.hold, false);
     addDataSheet(wb, 'Duplicates', result, result.groups.duplicate, true);
@@ -1433,6 +1507,7 @@
     state.printBoundaries = [];
     state.altForm = { name: '', entries: {} };
     state.hiddenRows = {};
+    state.manualAltRows = {};
     closeAltFormDialog();
     $('resultsCard').classList.add('hidden');
     $('fileInput').value = '';
@@ -1565,6 +1640,10 @@
       return state.result ? buildAltFormPrintHtml(state.result) : '';
     },
     altFormComplete: function () { return altFormComplete(state.result); },
+    allAltRows: function () { return state.result ? allAltRows(state.result) : []; },
+    toggleManualAltRow: function (rowIndex) {
+      if (state.result) toggleManualAltRow(state.result, rowIndex);
+    },
     state: state,
     getThemeMode: getThemeMode,
     applyTheme: applyTheme,

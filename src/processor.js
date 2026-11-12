@@ -295,6 +295,19 @@
     });
     var multiNeedCount = multiNeed.filter(Boolean).length;
 
+    // 8. Flag rows whose "Active OH" is below 1 (zero or negative). Blank
+    //    values are unknown, not zero, so they are left unmarked.
+    var activeOHIdx = outCols.activeOH;
+    var lowActiveOH = outRows.map(function (row) {
+      if (activeOHIdx === undefined) return false;
+      var raw = row[activeOHIdx];
+      var v = String(raw == null ? '' : raw).replace(/,/g, '').trim();
+      if (v === '') return false;
+      var num = Number(v);
+      return isFinite(num) && num < 1;
+    });
+    var lowActiveOHCount = lowActiveOH.filter(Boolean).length;
+
     return {
       header: outHeader,
       rows: outRows,
@@ -302,6 +315,7 @@
       columns: outCols,
       duplicates: duplicates,
       multiNeed: multiNeed,
+      lowActiveOH: lowActiveOH,
       categories: categories,
       groups: groups,
       barcodes: barcodes,
@@ -316,6 +330,7 @@
         holdRows: groups.hold.length,
         duplicateRows: duplicateCount,
         multiNeedRows: multiNeedCount,
+        lowActiveOHRows: lowActiveOHCount,
         distinctTotes: barcodes.length
       }
     };
