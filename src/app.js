@@ -202,6 +202,12 @@
     return !!state.hiddenRows[result.rowIds[rowIndex]];
   }
 
+  // Rows moved to the alt form are hidden from the Troubles list/print (but
+  // not from the alt form itself) until the move is undone with "-alt".
+  function isHiddenInNormalTable(result, rowIndex) {
+    return isRowHidden(result, rowIndex) || isManualAltRow(result, rowIndex);
+  }
+
   function toggleRowHidden(result, rowIndex) {
     if (!result || !result.rowIds) return;
     var id = result.rowIds[rowIndex];
@@ -255,7 +261,7 @@
       '</svg>';
   }
 
-  function renderTable(tableEl, indices, rowIdxs, result, breaksAfter, showAltToggle) {
+  function renderTable(tableEl, indices, rowIdxs, result, breaksAfter, showAltToggle, hideMovedToAlt) {
     var labelCol = result.columns.label;
     var needCol = result.columns.need;
     var activeOHCol = result.columns.activeOH;
@@ -280,7 +286,8 @@
     for (var n = 0; n < rowIdxs.length; n++) {
       var r = rowIdxs[n];
       var row = result.rows[r];
-      var hidden = isRowHidden(result, r);
+      var movedToAlt = hideMovedToAlt && isManualAltRow(result, r);
+      var hidden = isRowHidden(result, r) || movedToAlt;
       var tr = document.createElement('tr');
       tr.dataset.rowPos = String(n);
       var rowClasses = [];
@@ -297,8 +304,14 @@
       hideBtn.type = 'button';
       hideBtn.className = 'row-icon-btn row-eye-btn';
       hideBtn.innerHTML = eyeIconMarkup(hidden);
-      hideBtn.title = hidden ? 'Show this row again' : 'Hide this row (not printed)';
-      hideBtn.setAttribute('aria-label', hidden ? 'Show this row' : 'Hide this row');
+      if (movedToAlt) {
+        hideBtn.disabled = true;
+        hideBtn.title = 'This row is on the alt form. Use -alt to bring it back to Troubles.';
+        hideBtn.setAttribute('aria-label', 'Hidden in Troubles because it is on the alt form');
+      } else {
+        hideBtn.title = hidden ? 'Show this row again' : 'Hide this row (not printed)';
+        hideBtn.setAttribute('aria-label', hidden ? 'Show this row' : 'Hide this row');
+      }
       hideBtn.setAttribute('aria-pressed', hidden ? 'true' : 'false');
       (function (rowIndex) {
         hideBtn.addEventListener('click', function () { toggleRowHidden(result, rowIndex); });
@@ -390,7 +403,7 @@
     pw.appendChild(table);
     wrap.appendChild(pw);
 
-    renderTable(table, cols, def.rows, result, null, false);
+    renderTable(table, cols, def.rows, result, null, false, false);
     return wrap;
   }
 
@@ -432,7 +445,7 @@
   }
 
   function visibleNormalRows(result) {
-    return result.groups.normal.filter(function (r) { return !isRowHidden(result, r); });
+    return result.groups.normal.filter(function (r) { return !isHiddenInNormalTable(result, r); });
   }
 
   function visibleAltRows(result) {
@@ -467,7 +480,7 @@
       var count = 0;
       var fullPos = -1;
       for (var p = 0; p < fullRows.length; p++) {
-        if (isRowHidden(result, fullRows[p])) continue;
+        if (isHiddenInNormalTable(result, fullRows[p])) continue;
         if (count === nextStart) { fullPos = p; break; }
         count++;
       }
@@ -482,7 +495,7 @@
     var count = 0;
     var rows = result.groups.normal;
     for (var p = 0; p < fullPos && p < rows.length; p++) {
-      if (!isRowHidden(result, rows[p])) count++;
+      if (!isHiddenInNormalTable(result, rows[p])) count++;
     }
     return count;
   }
@@ -542,7 +555,7 @@
     var cols = visibleColumnIndices(result);
     var normalRows = result.groups.normal;
     var breaks = mainBreaks(result);
-    renderTable($('previewTable'), cols, normalRows, result, breaks, true);
+    renderTable($('previewTable'), cols, normalRows, result, breaks, true, true);
     $('troublesCount').textContent = '(' + normalRows.length + ')';
     $('previewNote').textContent = '';
     layoutPageHandles(result);
@@ -676,7 +689,7 @@
     host.innerHTML = '';
     host.appendChild(buildSection({
       title: 'Alt form \u2014 EO pickup',
-      note: 'Rows with no active location but a reserve location, plus any Troubles rows you add with the "+alt" button. Send an alt form so an EO can grab the item. Use the buttons above to fill in the location and case for each item, then print.',
+      note: 'Rows with no active location but a reserve location, plus Troubles rows added with "+alt" (those leave the Troubles print). Send an alt form so an EO can grab the item. Use the buttons above to fill in the location and case for each item, then print.',
       controls: buildAltFormControls(),
       rows: allAltRows(result)
     }, result, cols));
