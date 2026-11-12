@@ -245,7 +245,17 @@
     renderBarcodePreview(result);
   }
 
-  function renderTable(tableEl, indices, rowIdxs, result, breaksAfter) {
+  function eyeIconMarkup(hidden) {
+    return '<svg class="row-eye-icon" viewBox="0 0 24 24" width="14" height="14" ' +
+      'fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" ' +
+      'stroke-linejoin="round" aria-hidden="true">' +
+      '<path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"></path>' +
+      '<circle cx="12" cy="12" r="3"></circle>' +
+      (hidden ? '<line x1="3" y1="3" x2="21" y2="21"></line>' : '') +
+      '</svg>';
+  }
+
+  function renderTable(tableEl, indices, rowIdxs, result, breaksAfter, showAltToggle) {
     var labelCol = result.columns.label;
     var needCol = result.columns.need;
     var activeOHCol = result.columns.activeOH;
@@ -285,25 +295,28 @@
 
       var hideBtn = document.createElement('button');
       hideBtn.type = 'button';
-      hideBtn.className = 'row-hide-btn';
-      hideBtn.textContent = hidden ? 'Show' : 'Hide';
+      hideBtn.className = 'row-icon-btn row-eye-btn';
+      hideBtn.innerHTML = eyeIconMarkup(hidden);
       hideBtn.title = hidden ? 'Show this row again' : 'Hide this row (not printed)';
+      hideBtn.setAttribute('aria-label', hidden ? 'Show this row' : 'Hide this row');
       hideBtn.setAttribute('aria-pressed', hidden ? 'true' : 'false');
       (function (rowIndex) {
         hideBtn.addEventListener('click', function () { toggleRowHidden(result, rowIndex); });
       })(r);
       actions.appendChild(hideBtn);
 
-      // Rows the processor already put on the alt form need no add button.
-      if (result.categories[r] !== 'alt') {
+      // Adding to the alt form is only offered on the Troubles rows. Rows the
+      // processor already put on the alt form need no button.
+      if (showAltToggle && result.categories[r] !== 'alt') {
         var added = isManualAltRow(result, r);
         var altBtn = document.createElement('button');
         altBtn.type = 'button';
-        altBtn.className = 'row-hide-btn row-alt-btn' + (added ? ' is-added' : '');
-        altBtn.textContent = added ? 'Remove from alt form' : 'Add to alt form';
+        altBtn.className = 'row-icon-btn row-alt-btn' + (added ? ' is-added' : '');
+        altBtn.textContent = added ? '-alt' : '+alt';
         altBtn.title = added
           ? 'Remove this row from the alt form'
           : 'Also put this row on the alt form';
+        altBtn.setAttribute('aria-label', added ? 'Remove from alt form' : 'Add to alt form');
         altBtn.setAttribute('aria-pressed', added ? 'true' : 'false');
         (function (rowIndex) {
           altBtn.addEventListener('click', function () { toggleManualAltRow(result, rowIndex); });
@@ -377,7 +390,7 @@
     pw.appendChild(table);
     wrap.appendChild(pw);
 
-    renderTable(table, cols, def.rows, result);
+    renderTable(table, cols, def.rows, result, null, false);
     return wrap;
   }
 
@@ -529,7 +542,7 @@
     var cols = visibleColumnIndices(result);
     var normalRows = result.groups.normal;
     var breaks = mainBreaks(result);
-    renderTable($('previewTable'), cols, normalRows, result, breaks);
+    renderTable($('previewTable'), cols, normalRows, result, breaks, true);
     $('troublesCount').textContent = '(' + normalRows.length + ')';
     $('previewNote').textContent = '';
     layoutPageHandles(result);
@@ -663,7 +676,7 @@
     host.innerHTML = '';
     host.appendChild(buildSection({
       title: 'Alt form \u2014 EO pickup',
-      note: 'Rows with no active location but a reserve location, plus any rows you add with the "Add to alt form" button. Send an alt form so an EO can grab the item. Use the buttons above to fill in the location and case for each item, then print.',
+      note: 'Rows with no active location but a reserve location, plus any Troubles rows you add with the "+alt" button. Send an alt form so an EO can grab the item. Use the buttons above to fill in the location and case for each item, then print.',
       controls: buildAltFormControls(),
       rows: allAltRows(result)
     }, result, cols));

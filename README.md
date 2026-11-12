@@ -101,23 +101,23 @@ imported file.
 
 ### Hiding rows
 
-Every section has a **Hide** button on each row. A hidden row stays in the
-table, greyed out and crossed through, but it is skipped when the Troubles
-sheet and barcode labels are printed. Hidden alt-form rows are also left out
-of the fill-in popup and the printed alt form. Hiding does **not** re-process
-anything: tote-number labels and sections stay exactly as they were. Hidden
-rows stay hidden while you change the location filter, and are only cleared by
-**Start over**.
+Every section has an eye button on each row. The open eye means the row is
+visible; click it to hide the row (the eye becomes crossed out). A hidden row
+stays in the table, greyed out and crossed through, but it is skipped when the
+Troubles sheet and barcode labels are printed. Hidden alt-form rows are also
+left out of the fill-in popup and the printed alt form. Hiding does **not**
+re-process anything: tote-number labels and sections stay exactly as they were.
+Hidden rows stay hidden while you change the location filter, and are only
+cleared by **Start over**.
 
 ### Adding a row to the alt form
 
-Every row that is not already in the **Alt form** section has an **Add to alt
-form** button next to its **Hide** button. Use it when the system says stock
-exists but you cannot find it: the row is added to the Alt form section (and to
-the printed/downloaded alt form) while staying in its original section. Rows
-with an `Active OH` below 1 are highlighted orange to make those cases easy to
-find, but they are **not** added automatically. Click **Remove from alt form**
-on the same row to undo an addition.
+Troubles rows have a small **+alt** button next to the eye. Use it when the
+system says stock exists but you cannot find it: the row is added to the Alt
+form section (and to the printed/downloaded alt form) while staying in the
+Troubles list. Rows with an `Active OH` below 1 are highlighted orange to make
+those cases easy to find, but they are **not** added automatically. Click
+**-alt** on the same row to undo an addition.
 
 ### Why "Do NOT split cancel yet"?
 
@@ -246,7 +246,7 @@ These are the choices the tool makes. They are all easy to change - see
 | Order grouping | Rows are grouped by `oLPN` across the whole file for the hold rule. |
 | Duplicates | A row is a duplicate when its `oLPN`, `Tote Gid`, `Item`, `Need` and active location all match an earlier row. Other columns (e.g. `Time in OC`) may differ. The first occurrence keeps its section; later copies go to **Duplicates**. |
 | Hidden rows | Rows can be hidden in any section. They stay visible but grey/struck on the page and are skipped when printing Troubles, barcode labels and the alt form (hidden alt rows are also left out of the fill-in popup). Labels and section counts are not recalculated, and the hidden state survives location-filter changes until **Start over**. |
-| Manual alt rows | Any row not already in the Alt form can be added with **Add to alt form**. It stays in its original section and also appears in the Alt form section, the alt-form popup, the printed alt form and the downloaded **Alt Form** sheet. Additions survive location-filter changes until **Start over**. |
+| Manual alt rows | Any Troubles row can be added with **+alt**. It stays in the Troubles list and also appears in the Alt form section, the alt-form popup, the printed alt form and the downloaded **Alt Form** sheet. Additions survive location-filter changes until **Start over**. |
 | Low Active OH | A numeric `Active OH` below 1 (including 0 and negatives) marks that cell orange. Blank values are unknown and are not marked. This is only a marker; such rows are never moved to the alt form automatically. |
 | Barcodes | Code 128, encoding the **tote number**, generated only for the printable **Troubles**. |
 | Column toggle | Web tables default to `oLPN` through `Reserve Locn`, skipping `OC Mod` and `Reserve Locn 2`; the button reveals every column. The `.xlsx` always contains every column. |
