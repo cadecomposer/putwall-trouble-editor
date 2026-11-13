@@ -271,6 +271,30 @@ button.link {
 
 .action-row { display: flex; flex-wrap: wrap; gap: 10px; margin: 6px 0 4px; }
 
+/* Rearrange toolbar above the Troubles table */
+.preview-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 10px;
+}
+.preview-toolbar button[aria-pressed="true"] {
+  background: var(--loc-checked-bg);
+  border-color: var(--brand);
+  color: var(--accent-text);
+  font-weight: 600;
+}
+.icon-btn {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+}
+.preview-toolbar-hint { margin: 0; }
+
 /* Preview table */
 .preview-wrap {
   overflow-x: auto;
@@ -341,6 +365,41 @@ table.preview tr.row-hidden td.row-actions-col { background: var(--input-hover);
 .row-alt-btn { border-color: var(--accent-text); color: var(--accent-text); font-weight: 600; }
 .row-alt-btn.is-added { background: var(--loc-checked-bg); }
 table.preview tr.row-hidden .row-icon-btn { text-decoration: none; opacity: 1; }
+
+/* Drag handle to the left of each Troubles row in rearrange mode. */
+table.preview th.row-drag-col,
+table.preview td.row-drag-col {
+  width: 1%;
+  text-align: center;
+  padding: 2px 6px;
+  background: var(--card-bg);
+}
+.row-drag-handle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--accent-text);
+  border-radius: 6px;
+  background: var(--card-bg);
+  color: var(--accent-text);
+  cursor: grab;
+  touch-action: none;
+}
+.row-drag-handle:hover { background: var(--stat-bg); }
+.row-drag-handle:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.row-drag-grip {
+  width: 10px;
+  height: 2px;
+  background: currentColor;
+  box-shadow: 0 -4px 0 currentColor, 0 4px 0 currentColor;
+}
+table.preview tr.row-dragging td { background: var(--loc-checked-bg); }
+table.preview tr.row-dragging td.row-drag-col { background: var(--loc-checked-bg); }
+body.dragging-row { cursor: grabbing; user-select: none; -webkit-user-select: none; }
+body.dragging-row .row-drag-handle { cursor: grabbing; }
 table.preview td.label-col, table.preview th.label-col { text-align: center; font-weight: 700; background: var(--label-col-bg); }
 table.preview tr.dup td.label-col { background: var(--dup-bg); }
 table.preview td.needs-multi,

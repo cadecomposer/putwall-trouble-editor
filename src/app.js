@@ -27,6 +27,10 @@
     // source-row id. These are additions on top of the rows the processor
     // classified as alt; the source row stays in its original section.
     manualAltRows: {},
+    // Custom Troubles order: stable source-row ids, top to bottom. Cleared when
+    // the location filter changes, a new file is loaded, or "Start over".
+    rowOrder: [],
+    rearranging: false,
     result: null
   };
 
@@ -130,6 +134,9 @@
     if (!state.grid) return;
     var selected = getSelectedLocations();
     state.selectedLocations = selected;
+    // A different filter means a different row list, so any custom Troubles
+    // order no longer applies.
+    state.rowOrder = [];
 
     // No locations ticked yet is a valid state: the file is loaded and waiting
     // for a filter. Show a neutral prompt instead of hiding everything as an
@@ -209,6 +216,45 @@
     return isRowHidden(result, rowIndex) || isManualAltRow(result, rowIndex);
   }
 
+  // ---- Custom Troubles order ----------------------------------------------
+  //
+  // `state.rowOrder` holds stable source-row ids in the order the user dragged
+  // them into. Until they do, the processor's default order is used.
+
+  function defaultRowIds(result) {
+    return result.groups.normal.map(function (r) { return result.rowIds[r]; });
+  }
+
+  function orderedNormalRows(result) {
+    var rows = result.groups.normal;
+    if (!state.rowOrder.length) return rows;
+    var pos = {};
+    state.rowOrder.forEach(function (id, i) { pos[id] = i; });
+    var decorated = rows.map(function (r, i) {
+      var p = pos[result.rowIds[r]];
+      return { r: r, i: i, p: p === undefined ? Infinity : p };
+    });
+    decorated.sort(function (a, b) {
+      if (a.p !== b.p) return a.p - b.p;
+      return a.i - b.i;
+    });
+    return decorated.map(function (d) { return d.r; });
+  }
+
+  function hasCustomRowOrder(result) {
+    if (!result || !state.rowOrder.length) return false;
+    var def = defaultRowIds(result);
+    if (def.length !== state.rowOrder.length) return true;
+    for (var i = 0; i < def.length; i++) {
+      if (def[i] !== state.rowOrder[i]) return true;
+    }
+    return false;
+  }
+
+  function setRowOrderFromRows(result, rows) {
+    state.rowOrder = rows.map(function (r) { return result.rowIds[r]; });
+  }
+
   function toggleRowHidden(result, rowIndex) {
     if (!result || !result.rowIds) return;
     var id = result.rowIds[rowIndex];
@@ -262,7 +308,7 @@
       '</svg>';
   }
 
-  function renderTable(tableEl, indices, rowIdxs, result, breaksAfter, showAltToggle, hideMovedToAlt) {
+  function renderTable(tableEl, indices, rowIdxs, result, breaksAfter, showAltToggle, hideMovedToAlt, rearrange) {
     var labelCol = result.columns.label;
     var needCol = result.columns.need;
     var activeOHCol = result.columns.activeOH;
@@ -270,6 +316,12 @@
 
     var thead = document.createElement('thead');
     var htr = document.createElement('tr');
+    if (rearrange) {
+      var dragTh = document.createElement('th');
+      dragTh.className = 'row-drag-col';
+      dragTh.setAttribute('aria-hidden', 'true');
+      htr.appendChild(dragTh);
+    }
     var actionTh = document.createElement('th');
     actionTh.className = 'row-actions-col';
     actionTh.textContent = 'Actions';
@@ -294,7 +346,30 @@
       var rowClasses = [];
       if (result.duplicates[r]) rowClasses.push('dup');
       if (hidden) rowClasses.push('row-hidden');
+      if (rearrange && dragRowIndex === r) rowClasses.push('row-dragging');
       if (rowClasses.length) tr.className = rowClasses.join(' ');
+
+      if (rearrange) {
+        var dragTd = document.createElement('td');
+        dragTd.className = 'row-drag-col';
+        var dragHandle = document.createElement('button');
+        dragHandle.type = 'button';
+        dragHandle.className = 'row-drag-handle';
+        dragHandle.dataset.rowIndex = String(r);
+        dragHandle.title = 'Drag up or down to move this row';
+        dragHandle.setAttribute('aria-label',
+          'Move this row. Drag, or press the up and down arrow keys to move it.');
+        var dragGrip = document.createElement('span');
+        dragGrip.className = 'row-drag-grip';
+        dragGrip.setAttribute('aria-hidden', 'true');
+        dragHandle.appendChild(dragGrip);
+        (function (rowIndex) {
+          dragHandle.addEventListener('pointerdown', function (e) { startRowDrag(e, rowIndex); });
+          dragHandle.addEventListener('keydown', function (e) { onRowHandleKey(e, rowIndex); });
+        })(r);
+        dragTd.appendChild(dragHandle);
+        tr.appendChild(dragTd);
+      }
 
       var actionTd = document.createElement('td');
       actionTd.className = 'row-actions-col';
@@ -360,7 +435,7 @@
         brk.dataset.boundary = String(breaksAfter[n] - 2);
         brk.dataset.nextPage = String(breaksAfter[n]);
         var btd = document.createElement('td');
-        btd.colSpan = indices.length + 1;
+        btd.colSpan = indices.length + 1 + (rearrange ? 1 : 0);
         btd.textContent = 'Page ' + breaksAfter[n] + ' starts here';
         brk.appendChild(btd);
         tbody.appendChild(brk);
@@ -446,7 +521,7 @@
   }
 
   function visibleNormalRows(result) {
-    return result.groups.normal.filter(function (r) { return !isHiddenInNormalTable(result, r); });
+    return orderedNormalRows(result).filter(function (r) { return !isHiddenInNormalTable(result, r); });
   }
 
   function visibleAltRows(result) {
@@ -474,7 +549,7 @@
   function mainBreaks(result) {
     var ranges = currentRanges(result);
     if (ranges.length <= 1) return null;
-    var fullRows = result.groups.normal;
+    var fullRows = orderedNormalRows(result);
     var breaks = {};
     for (var i = 0; i < ranges.length - 1; i++) {
       var nextStart = ranges[i + 1][0];
@@ -494,7 +569,7 @@
   // dragging a page handle ignores the hidden rows it passes over.
   function printableCountBefore(result, fullPos) {
     var count = 0;
-    var rows = result.groups.normal;
+    var rows = orderedNormalRows(result);
     for (var p = 0; p < fullPos && p < rows.length; p++) {
       if (!isHiddenInNormalTable(result, rows[p])) count++;
     }
@@ -554,12 +629,13 @@
 
   function renderMainTableOnly(result) {
     var cols = visibleColumnIndices(result);
-    var normalRows = result.groups.normal;
+    var normalRows = orderedNormalRows(result);
     var breaks = mainBreaks(result);
-    renderTable($('previewTable'), cols, normalRows, result, breaks, true, true);
+    renderTable($('previewTable'), cols, normalRows, result, breaks, true, true, state.rearranging);
     $('troublesCount').textContent = '(' + normalRows.length + ')';
     $('previewNote').textContent = '';
     layoutPageHandles(result);
+    updateRearrangeButtons();
   }
 
   var mainTablePending = false;
@@ -636,6 +712,110 @@
     var cur = ranges[boundary][1];
     pendingHandleFocus = boundary;
     applyBoundary(boundary, e.key === 'ArrowUp' ? cur - 1 : cur + 1);
+  }
+
+  // ---- Dragging Troubles rows into a new order ----------------------------
+  //
+  // In rearrange mode each row has a grip on its left. Dragging it up or down
+  // moves the row; the new order lives in state.rowOrder and is used by the
+  // on-page table, the printed sheet and the .xlsx Troubles sheet.
+
+  var dragRowIndex = null;
+
+  function updateRearrangeButtons() {
+    var btn = $('rearrangeBtn');
+    var resetBtn = $('rearrangeResetBtn');
+    var hint = $('rearrangeHint');
+    if (!btn) return;
+    btn.setAttribute('aria-pressed', state.rearranging ? 'true' : 'false');
+    btn.title = state.rearranging
+      ? 'Stop rearranging rows'
+      : 'Show handles to drag rows into a new order';
+    if (resetBtn) {
+      resetBtn.disabled = !state.result || !hasCustomRowOrder(state.result);
+    }
+    if (hint) {
+      hint.textContent = state.rearranging
+        ? 'Drag the grip beside a row to move it. The printed sheet uses this order.'
+        : '';
+    }
+  }
+
+  function toggleRearrange() {
+    state.rearranging = !state.rearranging;
+    dragRowIndex = null;
+    if (state.result) renderMainTableOnly(state.result);
+    else updateRearrangeButtons();
+  }
+
+  function resetRowOrder() {
+    if (!state.result) return;
+    state.rowOrder = [];
+    renderMainTableOnly(state.result);
+  }
+
+  function moveRow(result, from, to) {
+    var rows = orderedNormalRows(result).slice();
+    if (from < 0 || from >= rows.length) return false;
+    to = Math.max(0, Math.min(rows.length - 1, to));
+    if (to === from) return false;
+    var moved = rows.splice(from, 1)[0];
+    rows.splice(to, 0, moved);
+    setRowOrderFromRows(result, rows);
+    return true;
+  }
+
+  function moveDraggedRowTo(result, pos) {
+    var rows = orderedNormalRows(result);
+    var from = rows.indexOf(dragRowIndex);
+    if (from < 0) return;
+    // `pos` is the gap in the table, including the row being dragged. When
+    // moving down, removing the row first shifts the gap up by one.
+    var to = pos > from ? pos - 1 : pos;
+    if (moveRow(result, from, to)) renderMainTableOnly(result);
+  }
+
+  function startRowDrag(e, rowIndex) {
+    if (!state.rearranging || !state.result || e.button !== 0) return;
+    e.preventDefault();
+    dragRowIndex = rowIndex;
+    document.body.classList.add('dragging-row');
+    renderMainTableOnly(state.result);
+    window.addEventListener('pointermove', onRowDragMove);
+    window.addEventListener('pointerup', endRowDrag);
+    window.addEventListener('pointercancel', endRowDrag);
+  }
+
+  function onRowDragMove(e) {
+    if (dragRowIndex === null || !state.result) return;
+    e.preventDefault();
+    var pos = rowPosAtClientY(e.clientY);
+    if (pos !== null) moveDraggedRowTo(state.result, pos);
+  }
+
+  function endRowDrag() {
+    if (dragRowIndex === null) return;
+    dragRowIndex = null;
+    document.body.classList.remove('dragging-row');
+    window.removeEventListener('pointermove', onRowDragMove);
+    window.removeEventListener('pointerup', endRowDrag);
+    window.removeEventListener('pointercancel', endRowDrag);
+    if (state.result) renderMainTableOnly(state.result);
+  }
+
+  function onRowHandleKey(e, rowIndex) {
+    if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+    e.preventDefault();
+    if (!state.result) return;
+    var rows = orderedNormalRows(state.result);
+    var from = rows.indexOf(rowIndex);
+    if (from < 0) return;
+    var to = e.key === 'ArrowUp' ? from - 1 : from + 1;
+    if (!moveRow(state.result, from, to)) return;
+    renderMainTableOnly(state.result);
+    var handle = $('previewTable').querySelector(
+      '.row-drag-handle[data-row-index="' + rowIndex + '"]');
+    if (handle) handle.focus({ preventScroll: true });
   }
 
   function renderPrintLayout(result) {
@@ -1441,7 +1621,7 @@
     wb.modified = new Date();
 
     // ---- one sheet per section ----
-    addDataSheet(wb, 'Troubles', result, result.groups.normal, false);
+    addDataSheet(wb, 'Troubles', result, orderedNormalRows(result), false);
     addDataSheet(wb, 'Alt Form', result, allAltRows(result), false);
     addDataSheet(wb, 'Split Cancel', result, result.groups.split, false);
     addDataSheet(wb, 'Split Cancel HOLD', result, result.groups.hold, false);
@@ -1535,6 +1715,8 @@
     state.altForm = { name: '', entries: {} };
     state.hiddenRows = {};
     state.manualAltRows = {};
+    state.rowOrder = [];
+    state.rearranging = false;
     closeAltFormDialog();
     $('resultsCard').classList.add('hidden');
     $('fileInput').value = '';
@@ -1652,6 +1834,8 @@
     $('pageMinus').addEventListener('click', function () { setPrintPages(state.printPages - 1); });
     $('pagePlus').addEventListener('click', function () { setPrintPages(state.printPages + 1); });
     $('pageEvenBtn').addEventListener('click', evenSplit);
+    $('rearrangeBtn').addEventListener('click', toggleRearrange);
+    $('rearrangeResetBtn').addEventListener('click', resetRowOrder);
     $('resetBtn').addEventListener('click', reset);
 
     // Keep the page-break handles lined up with their rows on resize.
@@ -1672,6 +1856,9 @@
       if (state.result) toggleManualAltRow(state.result, rowIndex);
     },
     visibleColumnIndices: visibleColumnIndices,
+    orderedNormalRows: orderedNormalRows,
+    visibleNormalRows: visibleNormalRows,
+    hasCustomRowOrder: hasCustomRowOrder,
     state: state,
     getThemeMode: getThemeMode,
     applyTheme: applyTheme,

@@ -92,6 +92,19 @@
 
       <h3 class="subhead">Troubles <span class="muted" id="troublesCount"></span></h3>
       <p class="hint" style="margin:-4px 0 10px">Rows with an active location. These are the ones that print.</p>
+      <div class="preview-toolbar">
+        <button type="button" id="rearrangeBtn" aria-pressed="false"
+          title="Show handles to drag rows into a new order">Rearrange</button>
+        <button type="button" id="rearrangeResetBtn" class="icon-btn"
+          aria-label="Reset row order to the default" title="Reset row order to the default" disabled>
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor"
+            stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M3 12a9 9 0 1 0 3-6.7"></path>
+            <polyline points="3 4 3 10 9 10"></polyline>
+          </svg>
+        </button>
+        <span class="hint preview-toolbar-hint" id="rearrangeHint"></span>
+      </div>
       <div class="preview-with-handles">
         <div class="page-handle-rail" id="pageHandleRail" role="group" aria-label="Page break handles"></div>
         <div class="preview-wrap">
