@@ -190,8 +190,9 @@
     }
     var idx = [];
     for (var i = start; i <= end; i++) {
-      // OC Mod and Reserve Locn 2 are only shown with "Show all columns".
-      if (i === result.columns.ocMod || i === result.columns.reserveLocn2) continue;
+      // OC Mod, LPN Type and Reserve Locn 2 are only shown with "Show all columns".
+      if (i === result.columns.ocMod || i === result.columns.lpnType ||
+          i === result.columns.reserveLocn2) continue;
       idx.push(i);
     }
     return idx;
@@ -1670,6 +1671,7 @@
     toggleManualAltRow: function (rowIndex) {
       if (state.result) toggleManualAltRow(state.result, rowIndex);
     },
+    visibleColumnIndices: visibleColumnIndices,
     state: state,
     getThemeMode: getThemeMode,
     applyTheme: applyTheme,

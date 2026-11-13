@@ -61,6 +61,7 @@ python3 build.py        # writes dist/putwall-trouble-editor.html
 node test/test-processor.js     # runs the logic against a real OC Clearing export
 node test/test-sections.js      # checks normal / alt / split / hold / duplicate handling
 node test/test-filter.js        # checks that changing locations recalculates everything
+node test/test-columns.js       # checks which columns compact mode hides
 ```
 
 The sections test uses a small synthetic file (`test/sample-sections.xlsx`) that
@@ -255,7 +256,7 @@ These are the choices the tool makes. They are all easy to change - see
 | Manual alt rows | Any Troubles row can be added with **+alt**. It is hidden from the Troubles list/print and barcodes, and appears in the Alt form section, the alt-form popup, the printed alt form and the downloaded **Alt Form** sheet. Clicking **-alt** restores it to Troubles. Additions survive location-filter changes until **Start over**. |
 | Low Active OH | A numeric `Active OH` below 1 (including 0 and negatives) marks that cell orange. Blank values are unknown and are not marked. This is only a marker; such rows are never moved to the alt form automatically. |
 | Barcodes | Code 128, encoding the **tote number**, generated only for the printable **Troubles**. |
-| Column toggle | Web tables default to `oLPN` through `Reserve Locn`, skipping `OC Mod` and `Reserve Locn 2`; the button reveals every column. The `.xlsx` always contains every column. |
+| Column toggle | Web tables default to `oLPN` through `Reserve Locn`, skipping `OC Mod`, `LPN Type` and `Reserve Locn 2`; the button reveals every column. The `.xlsx` always contains every column. |
 | Preview length | Every row is rendered on the page, so the whole list is visible at once (no separate scroll box inside the table). |
 | Print columns | Always `Tote Gid` … first `Reserve Locn`, landscape, 10pt, header repeated on every page. |
 | Print pages | Splits the printable Troubles into pages for multiple pickers; the split is even by default and each page start can be dragged with the handle on the left of the table (or moved with the arrow keys). Barcodes stay on a single page at the end. |
@@ -303,6 +304,7 @@ dist/putwall-trouble-editor.html   the self-contained tool (build output)
 test/test-processor.js      runs the core logic against a real report in Node
 test/test-filter.js         proves changing the location filter recalculates
                             sections, duplicates, labels and barcodes
+test/test-columns.js        pins down which columns compact mode hides
 HOSTING.md                  options for putting this on the web
 ```
 
