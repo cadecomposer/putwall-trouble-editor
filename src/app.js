@@ -36,7 +36,210 @@
 
   var MAX_PRINT_PAGES = 20;
 
+  // ------------------------------------------------------- Remembered session
+  //
+  // localStorage keeps the work between refreshes and browser restarts. The
+  // settings (filters, alt-form answers, hidden rows, ...) are small and are
+  // saved on every change; the imported grid gets its own key because it can
+  // be much larger. Both are plain JSON, versioned so an older/corrupt entry
+  // is simply ignored instead of breaking startup.
+
+  var SETTINGS_KEY = 'pwSettingsV1';
+  var SESSION_KEY = 'pwSessionV1';
+  var STORE_VERSION = 1;
+  var SAVE_DELAY_MS = 250;
+
+  var saveTimer = null;
+  var sessionSaveFailed = false;
+  var restoringState = false;
+
   function $(id) { return document.getElementById(id); }
+
+  function badStorageKey(key) {
+    return key === '__proto__' || key === 'constructor' || key === 'prototype';
+  }
+
+  function readStored(key) {
+    try {
+      if (typeof localStorage === 'undefined') return null;
+      var raw = localStorage.getItem(key);
+      if (!raw) return null;
+      var data = JSON.parse(raw);
+      if (!data || data.v !== STORE_VERSION) return null;
+      return data;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function writeStored(key, payload) {
+    try {
+      if (typeof localStorage === 'undefined') return false;
+      localStorage.setItem(key, JSON.stringify(payload));
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function cleanInt(value, min, max, fallback) {
+    var n = Math.floor(Number(value));
+    if (!isFinite(n)) return fallback;
+    return Math.max(min, Math.min(max, n));
+  }
+
+  function cleanIntArray(value) {
+    if (!Array.isArray(value)) return [];
+    return value.map(function (v) { return Math.floor(Number(v)); })
+      .filter(function (v) { return isFinite(v) && v >= 0; });
+  }
+
+  // Source-row ids are numbers. Accept numeric strings from older payloads.
+  function cleanRowOrder(value) {
+    if (!Array.isArray(value)) return [];
+    return value.map(function (id) { return Number(id); })
+      .filter(function (id) { return isFinite(id); });
+  }
+
+  function cleanStringArray(value) {
+    if (!Array.isArray(value)) return [];
+    return value.filter(function (v) { return typeof v === 'string'; });
+  }
+
+  function cleanFlagMap(value) {
+    var out = {};
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return out;
+    Object.keys(value).forEach(function (key) {
+      if (!badStorageKey(key) && value[key]) out[key] = true;
+    });
+    return out;
+  }
+
+  function cleanAltForm(value) {
+    var out = { name: '', entries: {} };
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return out;
+    if (typeof value.name === 'string') out.name = value.name;
+    var entries = value.entries;
+    if (entries && typeof entries === 'object' && !Array.isArray(entries)) {
+      Object.keys(entries).forEach(function (key) {
+        if (badStorageKey(key)) return;
+        var entry = entries[key];
+        if (!entry || typeof entry !== 'object') return;
+        out.entries[key] = {
+          location: typeof entry.location === 'string' ? entry.location : '',
+          caseNum: typeof entry.caseNum === 'string' ? entry.caseNum : ''
+        };
+      });
+    }
+    return out;
+  }
+
+  function cleanGrid(value) {
+    if (!Array.isArray(value) || !value.length) return null;
+    for (var i = 0; i < value.length; i++) {
+      if (!Array.isArray(value[i])) return null;
+    }
+    return value;
+  }
+
+  // The settings (small) are saved after a short pause so dragging rows or
+  // typing does not write to localStorage on every keystroke.
+  function saveSettingsNow() {
+    if (saveTimer) {
+      clearTimeout(saveTimer);
+      saveTimer = null;
+    }
+    return writeStored(SETTINGS_KEY, {
+      v: STORE_VERSION,
+      selectedLocations: state.selectedLocations.slice(),
+      showAllColumns: !!state.showAllColumns,
+      printPages: state.printPages,
+      printBoundaries: state.printBoundaries.slice(),
+      altForm: state.altForm,
+      hiddenRows: state.hiddenRows,
+      manualAltRows: state.manualAltRows,
+      rowOrder: state.rowOrder.slice()
+    });
+  }
+
+  function scheduleSave() {
+    if (saveTimer) clearTimeout(saveTimer);
+    saveTimer = setTimeout(function () {
+      saveTimer = null;
+      saveSettingsNow();
+    }, SAVE_DELAY_MS);
+  }
+
+  // The grid is saved separately and immediately, because it only changes when
+  // a file is imported. If the workbook is too large for the storage quota,
+  // keep working but tell the operator they will need to import it again.
+  function saveSessionNow() {
+    if (!state.grid) return true;
+    var payload = {
+      v: STORE_VERSION,
+      grid: state.grid,
+      sourceFileName: state.sourceFileName || ''
+    };
+    var ok = writeStored(SESSION_KEY, payload);
+    if (!ok) {
+      // A full quota is often caused by the previous workbook. Drop it before
+      // one retry so the page never restores an older file by mistake.
+      try {
+        if (typeof localStorage !== 'undefined') localStorage.removeItem(SESSION_KEY);
+      } catch (e) { /* ignore */ }
+      ok = writeStored(SESSION_KEY, payload);
+    }
+    sessionSaveFailed = !ok;
+    if (!ok) {
+      console.warn('Could not remember the imported spreadsheet between visits ' +
+        '(it may be too large for browser storage).');
+    }
+    return ok;
+  }
+
+  function loadSettings() { return readStored(SETTINGS_KEY); }
+  function loadSession() { return readStored(SESSION_KEY); }
+
+  function sessionSaveNote() {
+    return sessionSaveFailed
+      ? ' This spreadsheet is too large to remember after a refresh, so import it again next time.'
+      : '';
+  }
+
+  function applySettings(data) {
+    if (!data) return false;
+    state.selectedLocations = cleanStringArray(data.selectedLocations)
+      .filter(function (loc) { return LOCATIONS.indexOf(loc) !== -1; });
+    state.showAllColumns = !!data.showAllColumns;
+    state.printPages = cleanInt(data.printPages, 1, MAX_PRINT_PAGES, 1);
+    state.printBoundaries = cleanIntArray(data.printBoundaries);
+    state.altForm = cleanAltForm(data.altForm);
+    state.hiddenRows = cleanFlagMap(data.hiddenRows);
+    state.manualAltRows = cleanFlagMap(data.manualAltRows);
+    state.rowOrder = cleanRowOrder(data.rowOrder);
+    return true;
+  }
+
+  function applySession(data) {
+    if (!data) return false;
+    state.grid = cleanGrid(data.grid);
+    state.sourceFileName = typeof data.sourceFileName === 'string' ? data.sourceFileName : '';
+    return !!state.grid;
+  }
+
+  function clearSavedState() {
+    if (saveTimer) {
+      clearTimeout(saveTimer);
+      saveTimer = null;
+    }
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.removeItem(SETTINGS_KEY);
+        localStorage.removeItem(SESSION_KEY);
+      }
+    } catch (e) { /* ignore */ }
+    sessionSaveFailed = false;
+  }
 
   // ---------------------------------------------------------------- UI setup
 
@@ -81,6 +284,16 @@
     reprocess();
   }
 
+  function setSelectedLocationChecks(locations) {
+    var wanted = {};
+    (locations || []).forEach(function (loc) { wanted[loc] = true; });
+    Array.prototype.forEach.call(document.querySelectorAll('.loc-cb'), function (cb) {
+      cb.checked = !!wanted[cb.value];
+      cb.parentNode.classList.toggle('checked', cb.checked);
+    });
+    updateLocCount();
+  }
+
   function updateLocCount() {
     var count = getSelectedLocations().length;
     $('locCountLabel').textContent = count + ' selected';
@@ -120,6 +333,7 @@
         state.sourceFileName = file.name;
         state.printPages = 1;
         state.printBoundaries = [];
+        saveSessionNow();
         reprocess();
       } catch (err) {
         console.error(err);
@@ -132,11 +346,15 @@
 
   function reprocess() {
     if (!state.grid) return;
+    var keepRowOrder = restoringState;
+    restoringState = false;
     var selected = getSelectedLocations();
     state.selectedLocations = selected;
     // A different filter means a different row list, so any custom Troubles
-    // order no longer applies.
-    state.rowOrder = [];
+    // order no longer applies. The exception is restoring a saved session: its
+    // saved order belongs to exactly this filter/file.
+    if (!keepRowOrder) state.rowOrder = [];
+    scheduleSave();
 
     // No locations ticked yet is a valid state: the file is loaded and waiting
     // for a filter. Show a neutral prompt instead of hiding everything as an
@@ -146,7 +364,8 @@
       $('resultsCard').classList.add('hidden');
       setStatus(
         'Loaded ' + (state.sourceFileName || 'the spreadsheet') +
-        '. Select one or more trouble locations in step 1 to see results.', '');
+        '. Select one or more trouble locations in step 1 to see results.' +
+        sessionSaveNote(), '');
       return;
     }
 
@@ -160,7 +379,7 @@
       }
       state.result = result;
       setStatus('Done \u2014 ' + result.stats.keptRows + ' row(s) kept from ' +
-        result.stats.inputRows + ' putwall-related rows.', 'ok');
+        result.stats.inputRows + ' putwall-related rows.' + sessionSaveNote(), 'ok');
       renderResults(result);
     } catch (err) {
       console.error(err);
@@ -253,6 +472,7 @@
 
   function setRowOrderFromRows(result, rows) {
     state.rowOrder = rows.map(function (r) { return result.rowIds[r]; });
+    scheduleSave();
   }
 
   function toggleRowHidden(result, rowIndex) {
@@ -261,6 +481,7 @@
     if (state.hiddenRows[id]) delete state.hiddenRows[id];
     else state.hiddenRows[id] = true;
 
+    scheduleSave();
     // Only re-render: do not re-process. Labels, sections and barcodes keep
     // exactly the values they already had.
     renderTables(result);
@@ -293,6 +514,7 @@
     if (state.manualAltRows[id]) delete state.manualAltRows[id];
     else state.manualAltRows[id] = true;
 
+    scheduleSave();
     renderTables(result);
     renderStats(result);
     renderBarcodePreview(result);
@@ -658,6 +880,7 @@
     state.printBoundaries[b] = raw;
     var ranges = chunkRanges(total, pages, state.printBoundaries);
     state.printBoundaries = ranges.slice(0, -1).map(function (r) { return r[1]; });
+    scheduleSave();
     scheduleMainTable();
   }
 
@@ -751,6 +974,7 @@
   function resetRowOrder() {
     if (!state.result) return;
     state.rowOrder = [];
+    scheduleSave();
     renderMainTableOnly(state.result);
   }
 
@@ -843,6 +1067,7 @@
         hint.textContent = 'Drag the handles beside the troubles table to set where each page starts.';
       }
     }
+    scheduleSave();
   }
 
   function setPrintPages(pages) {
@@ -1248,6 +1473,7 @@
       data.entries[key] = { location: p.location, caseNum: p.caseNum };
     });
 
+    scheduleSave();
     closeAltFormDialog();
     updateAltFormButtons();
   }
@@ -1717,6 +1943,7 @@
     state.manualAltRows = {};
     state.rowOrder = [];
     state.rearranging = false;
+    clearSavedState();
     closeAltFormDialog();
     $('resultsCard').classList.add('hidden');
     $('fileInput').value = '';
@@ -1769,7 +1996,16 @@
 
   function init() {
     buildLocations();
-    updateLocCount();
+
+    // Restore the last visit before wiring the UI. The file and the small
+    // settings live under separate keys so a too-large workbook cannot stop
+    // the filters and alt-form answers from being remembered.
+    var savedSettings = loadSettings();
+    var savedSession = loadSession();
+    if (savedSettings) applySettings(savedSettings);
+    if (savedSession) applySession(savedSession);
+    if (savedSettings) setSelectedLocationChecks(state.selectedLocations);
+    else updateLocCount();
 
     applyTheme(getThemeMode());
     $('themeToggle').addEventListener('click', cycleTheme);
@@ -1842,6 +2078,21 @@
     window.addEventListener('resize', function () {
       if (state.result) layoutPageHandles(state.result);
     });
+
+    // Flush a pending settings write when the tab is closed or refreshed, so
+    // the last click is not lost to the save delay.
+    window.addEventListener('pagehide', function () {
+      if (saveTimer) saveSettingsNow();
+    });
+
+    // Re-run the pipeline from the remembered grid and filters. Keeping the
+    // saved row order is why reprocess() is told this is a restore.
+    if (state.grid) {
+      restoringState = true;
+      reprocess();
+    } else if (savedSettings && state.selectedLocations.length) {
+      setStatus('Your saved location selection was restored. Add the spreadsheet again to continue.', '');
+    }
   }
 
   // Exposed so the print/preview can be inspected and tested.
@@ -1860,6 +2111,17 @@
     visibleNormalRows: visibleNormalRows,
     hasCustomRowOrder: hasCustomRowOrder,
     state: state,
+    storage: {
+      settingsKey: SETTINGS_KEY,
+      sessionKey: SESSION_KEY,
+      loadSettings: loadSettings,
+      applySettings: applySettings,
+      saveSettingsNow: saveSettingsNow,
+      loadSession: loadSession,
+      applySession: applySession,
+      saveSessionNow: saveSessionNow,
+      clearSavedState: clearSavedState
+    },
     getThemeMode: getThemeMode,
     applyTheme: applyTheme,
     cycleTheme: cycleTheme

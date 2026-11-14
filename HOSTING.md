@@ -23,6 +23,9 @@ and cannot be blocked, because it is not a website at all.
 
 - **Pros:** zero setup, cannot be blocked, works offline, data never leaves the PC.
 - **Cons:** you have to move the file around; to update it you replace the file.
+  Browsers disagree about local storage for `file://` pages, so the tool's
+  "remembered between visits" session may not survive a browser restart. A
+  normal `http(s)` host below is more reliable if you rely on that memory.
 - **Best for:** getting through the holiday season today.
 
 Many people stop here. The rest are about making it accessible from any device.

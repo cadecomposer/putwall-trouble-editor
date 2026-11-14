@@ -63,6 +63,7 @@ node test/test-sections.js      # checks normal / alt / split / hold / duplicate
 node test/test-filter.js        # checks that changing locations recalculates everything
 node test/test-columns.js       # checks which columns compact mode hides
 node test/test-order.js         # checks the custom Troubles row order
+node test/test-persistence.js   # checks the saved session and storage guards
 ```
 
 The sections test uses a small synthetic file (`test/sample-sections.xlsx`) that
@@ -100,6 +101,23 @@ forms, split cancels/holds, duplicate marking, tote-number labels and barcodes
 are always recalculated for the current selection. Un-ticking every location
 hides the results until at least one is ticked again; it does not discard the
 imported file.
+
+### Remembered between visits
+
+The page remembers your work on this computer: the imported spreadsheet, the
+ticked locations, the print-page split, hidden rows, manual **+alt** rows, the
+custom Troubles order and the alt-form answers. Refreshing the page or closing
+and reopening the browser brings everything back, so an accidental refresh does
+not lose the form you were filling in. The data is kept in the browser's local
+storage for this page; it is not uploaded anywhere.
+
+**Start over** clears the remembered work. Clearing the browser's site data for
+the page does the same. If the page is opened directly from a file on disk
+rather than served over `http(s)`, some browsers do not keep this storage - use
+one of the hosting options in `HOSTING.md` if you need the memory to be
+reliable. A very large workbook can exceed the browser's storage quota; in that
+case the settings are still remembered but the spreadsheet has to be imported
+again (the page says so after loading it).
 
 ### Hiding rows
 
@@ -259,6 +277,7 @@ These are the choices the tool makes. They are all easy to change - see
 | Barcodes | Code 128, encoding the **tote number**, generated only for the printable **Troubles**. |
 | Column toggle | Web tables default to `oLPN` through `Reserve Locn`, skipping `OC Mod`, `LPN Type` and `Reserve Locn 2`; the button reveals every column. The `.xlsx` always contains every column. |
 | Row order | Troubles rows can be rearranged with the **Rearrange** button: drag the grip to the left of a row (or focus it and use the up/down arrow keys). The new order is used by the page, the printed sheet and the `.xlsx` Troubles sheet. The circular reset button restores the default order; it also resets automatically when the location filter changes, a new file is loaded, or **Start over** is clicked. |
+| Remembered session | The imported grid and the UI/alt-form state are stored in `localStorage` on this computer and restored after a refresh or browser restart. The grid has its own key, so a workbook too large for the quota still leaves the settings usable; the page then asks for the file again. **Start over** removes both keys. |
 | Preview length | Every row is rendered on the page, so the whole list is visible at once (no separate scroll box inside the table). |
 | Print columns | Always `Tote Gid` … first `Reserve Locn`, landscape, 10pt, header repeated on every page. |
 | Print pages | Splits the printable Troubles into pages for multiple pickers; the split is even by default and each page start can be dragged with the handle on the left of the table (or moved with the arrow keys). Barcodes stay on a single page at the end. |
@@ -308,6 +327,7 @@ test/test-filter.js         proves changing the location filter recalculates
                             sections, duplicates, labels and barcodes
 test/test-columns.js        pins down which columns compact mode hides
 test/test-order.js          checks custom Troubles row ordering
+test/test-persistence.js    checks the remembered session and storage guards
 HOSTING.md                  options for putting this on the web
 ```
 
@@ -320,6 +340,11 @@ locally. There are no network calls, no analytics, and no backend. That is
 deliberate, because the report contains order/OLPN/item data. Any hosting
 option you choose in `HOSTING.md` keeps this property as long as you serve the
 static files only.
+
+To survive a refresh, the imported grid and your settings are also written to
+this browser's `localStorage` on this computer (see "Remembered between
+visits"). They never leave the machine, and **Start over** deletes them. Keep
+that in mind on a shared PC.
 
 ---
 
