@@ -1269,7 +1269,7 @@
         '</tr>';
     }).join('');
 
-    var title = 'Alt Form';
+    var title = 'Putwall Alt Form';
     var locations = (state.selectedLocations || []).join(', ');
     var head = title + (locations ? ' \u2014 ' + locations : '');
     var stamp = formatTimestamp(new Date());
