@@ -25,7 +25,10 @@ spreadsheet in a few clicks:
    troubles table — optionally split across pages for multiple pickers — plus a
    page of barcode labels.
 9. **Fill in and print an alt form** for items that only have a reserve
-   location, adding the location and case that are not on the export.
+   location, adding the location and case that are not on the export, with an
+   optional **Priority** marker and a **Download .docx** for editing.
+10. **Print or download the split cancels** — every split cancel in the report,
+    or only the ones for your selected locations.
 
 Everything runs in the browser. No file, order, item or tote data is ever
 uploaded anywhere.
@@ -64,6 +67,8 @@ node test/test-filter.js        # checks that changing locations recalculates ev
 node test/test-columns.js       # checks which columns compact mode hides
 node test/test-order.js         # checks the custom Troubles row order
 node test/test-persistence.js   # checks the saved session and storage guards
+node test/test-allrows.js       # checks the "all split cancels" whole-file option
+node test/test-altform-export.js # checks the alt form print/.docx and the split-cancel print
 ```
 
 The sections test uses a small synthetic file (`test/sample-sections.xlsx`) that
@@ -156,18 +161,21 @@ location you did not select.
 
 ### Filling in and printing an alt form
 
-The **Alt form - EO pickup** section has two buttons above it:
+The **Alt form - EO pickup** section has three buttons above it:
 
 - **Fill in alt form info** opens a popup for the details that are not on the
   OC Clearing export.
 - **Print alt form** prints the finished form.
+- **Download .docx** saves the form as an editable Word document.
 
-Both buttons are greyed out when there are no alt-form rows, and **Print alt
-form** stays greyed out until the form has been filled in and saved.
+**Fill in alt form info** and **Download .docx** are greyed out when there are
+no alt-form rows. **Print alt form** stays greyed out until the form has been
+filled in and saved, but **Download .docx** can be used at any time so the form
+can be finished off (or corrected) in Word.
 
-The popup asks for a **Name** (shown at the top of the printed form), then one
-entry per alt-form row, numbered 1, 2, 3, ... in the order they appear on the
-page. Each entry has, in this order:
+The popup asks for a **Name** (shown at the top of the printed form) and a
+**Priority** tick box, then one entry per alt-form row, numbered 1, 2, 3, ... in
+the order they appear on the page. Each entry has, in this order:
 
 | Field | Source |
 | --- | --- |
@@ -177,13 +185,19 @@ page. Each entry has, in this order:
 | Qty | Filled in from the `Need` column. Read-only. |
 | oLPN | Filled in from the `oLPN` column, last 4 digits. Read-only. |
 
-The read-only fields are greyed out and cannot be edited. **Save** refuses to
-close the popup until the name and every Location and Case are filled in. The
-saved values are remembered while you print the form (so the same form can be
-printed at several locations) and are only cleared when you click **Start
-over**. The form prints portrait at 24px, one line per item, with columns sized
-to their contents and the table centered on the page, and with the name and a
-"Printed:" timestamp at the top and a "Thank you!" at the bottom.
+The read-only fields are greyed out and cannot be edited. **Save** stores
+whatever has been typed so far, so you can save your progress and come back
+later; it does not have to be complete. The saved values are remembered while
+you print the form (so the same form can be printed at several locations) and
+are only cleared when you click **Start over**. **Print alt form** stays greyed
+out until the name and every Location and Case are filled in, so an unfinished
+form cannot be printed by accident.
+
+The form prints portrait, one line per item, with columns sized to their
+contents and the table centered on the page. The title is **Putwall Alt Form**,
+centered and larger, with the name and a "Printed:" timestamp below it and a
+"Thank you!" at the bottom. If the **Priority** box was ticked, the title reads
+**Putwall Alt Form - PRIORITY** with **PRIORITY** in bold.
 
 ### Printing
 
@@ -207,8 +221,25 @@ The full **Print sheet + barcodes** output is:
   at the end.
 
 These three buttons print only the printable **Troubles** (and their barcodes).
-The split-cancel, hold and duplicate sections are never printed. The **Alt
-form** has its own dedicated print button (see above).
+The hold and duplicate sections are never printed. The **Alt form** and the
+**Split cancel** section each have their own dedicated print buttons (see
+above and below).
+
+#### Printing the split cancels
+
+The **Split cancel** section has three buttons above it:
+
+- **Print all** (the highlighted one) prints every split cancel in the report,
+  regardless of which TRBL-PW locations are ticked.
+- **Print visible** prints only the split cancels for the locations you have
+  ticked.
+- **Download .xlsx** saves the split cancels as a spreadsheet.
+
+Unlike the troubles sheet (which stops at the first `Reserve Locn`), the
+split-cancel printout runs from `oLPN` through `Reserve Locn 2`, so it uses a
+smaller font (7pt) to fit the extra columns on a landscape page. The downloaded
+workbook has one sheet for the "all" split cancels and one for the "visible"
+ones.
 
 #### Splitting the list across pages
 
@@ -246,6 +277,10 @@ The downloaded `.xlsx` has one sheet per section:
 - **Barcodes** - one row per printable tote: the label number, the tote number,
   and a Code 128 barcode image.
 
+The split-cancel section also has its own **Download .xlsx** button (see
+above), which produces a small workbook with just a `Split Cancel (all)` sheet
+and a `Split Cancel (visible)` sheet.
+
 Every data sheet also has:
 
 - the new `Label` column immediately to the right of `Tote Gid`;
@@ -281,6 +316,11 @@ These are the choices the tool makes. They are all easy to change - see
 | Preview length | Every row is rendered on the page, so the whole list is visible at once (no separate scroll box inside the table). |
 | Print columns | Always `Tote Gid` … first `Reserve Locn`, landscape, 10pt, header repeated on every page. |
 | Print pages | Splits the printable Troubles into pages for multiple pickers; the split is even by default and each page start can be dragged with the handle on the left of the table (or moved with the arrow keys). Barcodes stay on a single page at the end. |
+| Alt form save | **Save** keeps whatever has been typed so far, so progress is not lost. Printing still requires a name and every Location and Case. |
+| Alt form priority | The **Priority** tick box adds " - PRIORITY" (bold) to the centered **Putwall Alt Form** title on the printed form and the .docx. |
+| Alt form .docx | **Download .docx** writes a small, valid Word package (built in `src/app.js` with a store-only ZIP writer) so the form can be edited. |
+| Split-cancel print | **Print all** covers every split cancel in the report; **Print visible** only the selected TRBL-PW locations. Columns run `oLPN` through `Reserve Locn 2` at 7pt. |
+| Split-cancel .xlsx | A dedicated **Download .xlsx** writes a workbook with `Split Cancel (all)` and `Split Cancel (visible)` sheets. |
 
 If any of these should behave differently, it is a small change - see below.
 
@@ -300,9 +340,14 @@ workbook writing live in **`src/app.js`**.
   `makeBarcodeSvg()` functions. Change `format: 'CODE128'` to `'CODE39'`, etc.
 - **Default web columns:** `visibleColumnIndices()` in `src/app.js`.
 - **Printed columns:** the `PRINT_COLUMNS` array in `src/app.js`.
-- **Alt form font size / layout:** `ALT_FORM_PRINT_CSS` in `src/app.js` (print)
-  and the `.modal` / `.alt-field` rules in `src/styles.css` (popup). Both use
-  24px at the moment.
+- **Alt form font size / layout:** `ALT_FORM_PRINT_CSS` in `src/app.js` (the
+  printed form, 24px) and the `.modal` / `.alt-field` rules in
+  `src/styles.css` (the popup, which matches the rest of the page at 15px).
+- **Alt form .docx:** `buildAltFormDocumentXml()` / `buildAltFormDocx()` in
+  `src/app.js` (the package is written by the small `zipStore()` helper).
+- **Split-cancel printed columns:** `splitPrintColumns()` and
+  `SPLIT_PRINT_CSS` in `src/app.js`.
+- **Split-cancel sheet names:** `downloadSplitCancels()` in `src/app.js`.
 - **Sheet names:** `buildWorkbook()` in `src/app.js`.
 
 After editing, run `python3 build.py` to regenerate the single-file version.
@@ -328,6 +373,8 @@ test/test-filter.js         proves changing the location filter recalculates
 test/test-columns.js        pins down which columns compact mode hides
 test/test-order.js          checks custom Troubles row ordering
 test/test-persistence.js    checks the remembered session and storage guards
+test/test-allrows.js        checks the "all split cancels" whole-file option
+test/test-altform-export.js checks the alt form print/.docx and split print
 HOSTING.md                  options for putting this on the web
 ```
 

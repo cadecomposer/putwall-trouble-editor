@@ -44,6 +44,7 @@ state.printPages = 3;
 state.printBoundaries = [2, 5];
 state.altForm = {
   name: 'Pat',
+  priority: true,
   entries: { 'oLPN\u241fSKU\u241fT1\u241f3': { location: 'A1', caseNum: 'C9' } }
 };
 state.hiddenRows = { '12': true };
@@ -67,7 +68,7 @@ state.selectedLocations = [];
 state.showAllColumns = false;
 state.printPages = 1;
 state.printBoundaries = [];
-state.altForm = { name: '', entries: {} };
+state.altForm = { name: '', entries: {}, priority: false };
 state.hiddenRows = {};
 state.manualAltRows = {};
 state.rowOrder = [];
@@ -78,6 +79,7 @@ assert.strictEqual(state.showAllColumns, true);
 assert.strictEqual(state.printPages, 3);
 assert.deepStrictEqual(state.printBoundaries, [2, 5]);
 assert.deepStrictEqual(state.altForm, savedSettings.altForm);
+assert.strictEqual(state.altForm.priority, true, 'priority survives a round-trip');
 assert.deepStrictEqual(state.hiddenRows, { '12': true });
 assert.deepStrictEqual(state.manualAltRows, { '15': true });
 assert.deepStrictEqual(state.rowOrder, [7, 3, 9]);
@@ -123,7 +125,7 @@ assert.deepStrictEqual(state.selectedLocations, ['TRBL-PW-02']);
 assert.strictEqual(state.showAllColumns, true);
 assert.strictEqual(state.printPages, 1);
 assert.deepStrictEqual(state.printBoundaries, [4, 9]);
-assert.deepStrictEqual(state.altForm, { name: '', entries: { ok: { location: 'A1', caseNum: '' } } });
+assert.deepStrictEqual(state.altForm, { name: '', entries: { ok: { location: 'A1', caseNum: '' } }, priority: false });
 assert.deepStrictEqual(state.hiddenRows, {});
 assert.deepStrictEqual(state.manualAltRows, { '5': true });
 assert.deepStrictEqual(state.rowOrder, [8, 2]);
