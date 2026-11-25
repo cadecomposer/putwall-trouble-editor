@@ -27,8 +27,8 @@ spreadsheet in a few clicks:
 9. **Fill in and print an alt form** for items that only have a reserve
    location, adding the location and case that are not on the export, with an
    optional **Priority** marker and a **Download .docx** for editing.
-10. **Print or download the split cancels** — every split cancel in the report,
-    or only the ones for your selected locations.
+10. **Print the split cancels** — every putwall (TRBL-PW) split cancel, or only
+    the ones for your selected locations.
 
 Everything runs in the browser. No file, order, item or tote data is ever
 uploaded anywhere.
@@ -67,7 +67,7 @@ node test/test-filter.js        # checks that changing locations recalculates ev
 node test/test-columns.js       # checks which columns compact mode hides
 node test/test-order.js         # checks the custom Troubles row order
 node test/test-persistence.js   # checks the saved session and storage guards
-node test/test-allrows.js       # checks the "all split cancels" whole-file option
+node test/test-split-all.js    # checks the "all split cancels" putwall filter
 node test/test-altform-export.js # checks the alt form print/.docx and the split-cancel print
 ```
 
@@ -227,19 +227,17 @@ above and below).
 
 #### Printing the split cancels
 
-The **Split cancel** section has three buttons above it:
+The **Split cancel** section has two buttons above it:
 
-- **Print all** (the highlighted one) prints every split cancel in the report,
-  regardless of which TRBL-PW locations are ticked.
+- **Print all** (the highlighted one) prints every putwall split cancel — that
+  is, every split cancel whose location is a `TRBL-PW-xx` — regardless of which
+  locations are ticked. Rows at other, non-putwall locations are left out.
 - **Print visible** prints only the split cancels for the locations you have
   ticked.
-- **Download .xlsx** saves the split cancels as a spreadsheet.
 
 Unlike the troubles sheet (which stops at the first `Reserve Locn`), the
 split-cancel printout runs from `oLPN` through `Reserve Locn 2`, so it uses a
-smaller font (7pt) to fit the extra columns on a landscape page. The downloaded
-workbook has one sheet for the "all" split cancels and one for the "visible"
-ones.
+smaller font (7pt) to fit the extra columns on a landscape page.
 
 #### Splitting the list across pages
 
@@ -276,10 +274,6 @@ The downloaded `.xlsx` has one sheet per section:
 - **Duplicates** - later exact copies of an earlier row (filled light red).
 - **Barcodes** - one row per printable tote: the label number, the tote number,
   and a Code 128 barcode image.
-
-The split-cancel section also has its own **Download .xlsx** button (see
-above), which produces a small workbook with just a `Split Cancel (all)` sheet
-and a `Split Cancel (visible)` sheet.
 
 Every data sheet also has:
 
@@ -319,8 +313,7 @@ These are the choices the tool makes. They are all easy to change - see
 | Alt form save | **Save** keeps whatever has been typed so far, so progress is not lost. Printing still requires a name and every Location and Case. |
 | Alt form priority | The **Priority** tick box adds " - PRIORITY" (bold) to the centered **Putwall Alt Form** title on the printed form and the .docx. |
 | Alt form .docx | **Download .docx** writes a small, valid Word package (built in `src/app.js` with a store-only ZIP writer) so the form can be edited. |
-| Split-cancel print | **Print all** covers every split cancel in the report; **Print visible** only the selected TRBL-PW locations. Columns run `oLPN` through `Reserve Locn 2` at 7pt. |
-| Split-cancel .xlsx | A dedicated **Download .xlsx** writes a workbook with `Split Cancel (all)` and `Split Cancel (visible)` sheets. |
+| Split-cancel print | **Print all** covers every putwall (`TRBL-PW-xx`) split cancel and leaves out non-putwall locations; **Print visible** only the selected TRBL-PW locations. Columns run `oLPN` through `Reserve Locn 2` at 7pt. |
 
 If any of these should behave differently, it is a small change - see below.
 
@@ -347,7 +340,6 @@ workbook writing live in **`src/app.js`**.
   `src/app.js` (the package is written by the small `zipStore()` helper).
 - **Split-cancel printed columns:** `splitPrintColumns()` and
   `SPLIT_PRINT_CSS` in `src/app.js`.
-- **Split-cancel sheet names:** `downloadSplitCancels()` in `src/app.js`.
 - **Sheet names:** `buildWorkbook()` in `src/app.js`.
 
 After editing, run `python3 build.py` to regenerate the single-file version.
@@ -373,7 +365,7 @@ test/test-filter.js         proves changing the location filter recalculates
 test/test-columns.js        pins down which columns compact mode hides
 test/test-order.js          checks custom Troubles row ordering
 test/test-persistence.js    checks the remembered session and storage guards
-test/test-allrows.js        checks the "all split cancels" whole-file option
+test/test-split-all.js      checks the "all split cancels" putwall filter
 test/test-altform-export.js checks the alt form print/.docx and split print
 HOSTING.md                  options for putting this on the web
 ```

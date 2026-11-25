@@ -118,13 +118,9 @@
    *
    * @param {Array<Array<any>>} rawRows  grid including title rows + header row
    * @param {Array<string>} selectedLocations  e.g. ['TRBL-PW-01','TRBL-PW-05']
-   * @param {object} [options]  { allRows: true } keeps every data row instead of
-   *   filtering to the selected locations. Used for the "all split cancels"
-   *   print/download, which ignores the TRBL-PW location selection.
    * @returns {object} result
    */
-  function processData(rawRows, selectedLocations, options) {
-    options = options || {};
+  function processData(rawRows, selectedLocations) {
     var rows = rawRows || [];
     var headerIndex = findHeaderRow(rows);
     if (headerIndex < 0) {
@@ -153,7 +149,7 @@
     var filtered = [];
     var filteredIds = [];
     dataRows.forEach(function (row, i) {
-      if (options.allRows || wanted[normalizeLocation(row[srcCols.location])]) {
+      if (wanted[normalizeLocation(row[srcCols.location])]) {
         filtered.push(row);
         filteredIds.push(sourceIds[i]);
       }

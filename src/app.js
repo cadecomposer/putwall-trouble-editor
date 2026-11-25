@@ -362,11 +362,12 @@
     if (!keepRowOrder) state.rowOrder = [];
     scheduleSave();
 
-    // Process the whole file once with no location filter, so the split-cancel
-    // print/download can offer "all" split cancels (ignoring the TRBL-PW
-    // selection). Best-effort: the main pipeline below reports any real error.
+    // Process the whole file with every TRBL-PW location selected, so the
+    // split-cancel "Print all" can offer every putwall split cancel while
+    // leaving out rows at other (non-putwall) locations. Best-effort: the main
+    // pipeline below reports any real error.
     try {
-      state.allSplitResult = PWProcessor.processData(state.grid, [], { allRows: true });
+      state.allSplitResult = PWProcessor.processData(state.grid, LOCATIONS);
     } catch (e) {
       state.allSplitResult = null;
     }
@@ -1116,7 +1117,7 @@
     }, result, cols));
     host.appendChild(buildSection({
       title: 'Split cancel',
-      note: 'No active or reserve location, and no other item on the order is findable. Safe to split cancel. Print all split cancels in the report, or only the rows for your selected locations, or download the list as a spreadsheet.',
+      note: 'No active or reserve location, and no other item on the order is findable. Safe to split cancel. Print all putwall (TRBL-PW) split cancels, or only the rows for your selected locations.',
       controls: buildSplitControls(),
       rows: result.groups.split
     }, result, cols));
@@ -2028,8 +2029,8 @@
   //
   // Unlike the troubles sheet (which stops at the first Reserve Locn), the
   // split-cancel sheet prints the columns from oLPN through Reserve Locn 2, so
-  // the font is smaller to fit. "Print all" covers every split cancel in the
-  // report; "Print visible" only the rows for the selected TRBL-PW locations.
+  // the font is smaller to fit. "Print all" covers every putwall (TRBL-PW)
+  // split cancel; "Print visible" only the rows for the selected locations.
 
   var SPLIT_PRINT_CSS = [
     '@page { size: landscape; margin: 8mm; }',
@@ -2102,42 +2103,6 @@
     printHtmlDocument(buildSplitPrintHtml(mode));
   }
 
-  function outputSplitFileName() {
-    var base = (state.sourceFileName || 'OC-Clearing').replace(/\.[^.]+$/, '');
-    return base + ' - Split Cancels.xlsx';
-  }
-
-  function downloadSplitCancels() {
-    if (!state.result) return;
-    var allCount = state.allSplitResult ? state.allSplitResult.groups.split.length : 0;
-    var visibleCount = state.result.groups.split.length;
-    if (!allCount && !visibleCount) return;
-
-    setBusy(true);
-    setStatus('Building the split-cancel workbook \u2026', '');
-    var wb = new ExcelJS.Workbook();
-    wb.creator = 'Putwall Trouble Spreadsheet Editor';
-    wb.created = new Date();
-    wb.modified = new Date();
-    if (allCount) {
-      addDataSheet(wb, 'Split Cancel (all)', state.allSplitResult, state.allSplitResult.groups.split, false);
-    }
-    if (visibleCount) {
-      addDataSheet(wb, 'Split Cancel (visible)', state.result, state.result.groups.split, false);
-    }
-    wb.xlsx.writeBuffer().then(function (buffer) {
-      var blob = new Blob([buffer], {
-        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-      });
-      saveBlob(blob, outputSplitFileName());
-      setStatus('Downloaded: ' + outputSplitFileName(), 'ok');
-    }).catch(function (err) {
-      console.error(err);
-      setStatus('Could not build the split-cancel workbook: ' +
-        (err && err.message ? err.message : err), 'error');
-    }).then(function () { setBusy(false); });
-  }
-
   function buildSplitControls() {
     var wrap = document.createElement('div');
     wrap.className = 'alt-form-controls split-controls';
@@ -2150,7 +2115,7 @@
     allBtn.id = 'splitPrintAllBtn';
     allBtn.className = 'primary';
     allBtn.textContent = '\uD83D\uDDA8 Print all';
-    allBtn.title = 'Print every split cancel in the report, regardless of the selected TRBL-PW locations';
+    allBtn.title = 'Print every putwall (TRBL-PW) split cancel, regardless of the selected locations';
     allBtn.disabled = allCount === 0;
     allBtn.addEventListener('click', function () { printSplitCancels('all'); });
 
@@ -2162,17 +2127,8 @@
     visibleBtn.disabled = visibleCount === 0;
     visibleBtn.addEventListener('click', function () { printSplitCancels('visible'); });
 
-    var xlsxBtn = document.createElement('button');
-    xlsxBtn.type = 'button';
-    xlsxBtn.id = 'splitXlsxBtn';
-    xlsxBtn.textContent = '\u2b07 Download .xlsx';
-    xlsxBtn.title = 'Download the split cancels as a spreadsheet';
-    xlsxBtn.disabled = (allCount + visibleCount) === 0;
-    xlsxBtn.addEventListener('click', downloadSplitCancels);
-
     wrap.appendChild(allBtn);
     wrap.appendChild(visibleBtn);
-    wrap.appendChild(xlsxBtn);
     return wrap;
   }
 
